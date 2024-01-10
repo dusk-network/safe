@@ -14,4 +14,4 @@ mod error;
 mod sponge;
 
 pub use error::Error;
-pub use sponge::{DomainSeparator, IOCall, IOPattern, Sponge};
+pub use sponge::{DomainSeparator, IOCall, Sponge};

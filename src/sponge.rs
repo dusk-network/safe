@@ -19,7 +19,7 @@ pub struct Sponge<const N: usize> {
     pos_absorb: usize,
     pos_sqeeze: usize,
     pos_io: usize,
-    iopattern: IOPattern,
+    iopattern: Vec<IOCall>,
     domain_sep: DomainSeparator,
 }
 
@@ -27,12 +27,7 @@ impl<const N: usize> Sponge<N> {
     /// This initializes the inner state of the sponge, modifying up to c/2
     /// [`BlsScalar`] of the state.
     /// It’s done once in the lifetime of a sponge.
-    pub fn start(
-        mut iopattern: IOPattern,
-        domain_sep: DomainSeparator,
-    ) -> Self {
-        iopattern.aggregate();
-
+    pub fn start(iopattern: Vec<IOCall>, domain_sep: DomainSeparator) -> Self {
         let mut instance = Self {
             state: [BlsScalar::zero(); N],
             pos_absorb: 0,
@@ -42,6 +37,8 @@ impl<const N: usize> Sponge<N> {
             domain_sep,
         };
 
+        // Aggregate the io-pattern
+        instance.aggregate_io_pattern();
         // Initialize the state with a tag calculated from the io-pattern and
         // domain-separator.
         instance.initialize_state();
@@ -57,10 +54,10 @@ impl<const N: usize> Sponge<N> {
         input: &[BlsScalar],
     ) -> Result<(), Error> {
         // Check that the io-pattern is not violated
-        if self.pos_io >= self.iopattern.0.len() {
+        if self.pos_io >= self.iopattern.len() {
             return Err(Error::IOPatternViolation);
         }
-        match self.iopattern.0[self.pos_io] {
+        match self.iopattern[self.pos_io] {
             IOCall::Squeeze(_) => {
                 return Err(Error::IOPatternViolation);
             }
@@ -99,10 +96,10 @@ impl<const N: usize> Sponge<N> {
     /// It also checks if the current call matches the IO pattern.
     pub fn squeeze(&mut self, len: usize) -> Result<Vec<BlsScalar>, Error> {
         // Check that the io-pattern is not violated
-        if self.pos_io >= self.iopattern.0.len() {
+        if self.pos_io >= self.iopattern.len() {
             return Err(Error::IOPatternViolation);
         }
-        match self.iopattern.0[self.pos_io] {
+        match self.iopattern[self.pos_io] {
             IOCall::Absorb(_) => {
                 return Err(Error::IOPatternViolation);
             }
@@ -145,28 +142,42 @@ impl<const N: usize> Sponge<N> {
         N - Self::capacity()
     }
 
+    /// Aggregate contiguous calls to absorb or squeeze into a single call,
+    /// e.g.:
+    /// `[Absorb(3), Absorb(3), Squeeze(1)] -> [Absorb(6), Squeeze(1)]`
+    fn aggregate_io_pattern(&mut self) {
+        unimplemented!();
+    }
+
     fn initialize_state(&mut self) {
         self.state[0] = self.tag();
     }
 
+    /// Compute the tag for the sponge instance, using the domain-separator and
+    /// IO-pattern.
+    ///
+    /// Note: The IO-pattern is expected to be aggragated.
     fn tag(&self) -> BlsScalar {
         let mut input_u32 = Vec::new();
-        for io_call in self.iopattern.0.iter() {
+
+        // Encode calls to absorb and squeeze
+        for io_call in self.iopattern.iter() {
             match io_call {
                 IOCall::Absorb(len) => input_u32.push(0x8000_0000 + len),
                 IOCall::Squeeze(len) => input_u32.push(*len),
             }
         }
+        // Add the domain separator to the hash input
         input_u32.push((&self.domain_sep).into());
 
+        // Convert hash input to an array of u8, using big endian conversion
         let input_u8: Vec<u8> = input_u32
             .iter()
             .map(|u32_int| u32_int.to_be_bytes().into_iter())
             .flatten()
             .collect();
 
-        // Hash the string obtained with the hasher H to a 254-bit tag T
-        // (truncating the hash if needed).
+        // Hash the string obtained into a BlsScalar
         BlsScalar::hash_to_scalar(&input_u8)
     }
 }
@@ -190,29 +201,17 @@ impl Into<u32> for &DomainSeparator {
     }
 }
 
-/// A compact encoding of the pattern of [`Sponge::absorb`] and
-/// [`Sponge::squeeze`] calls during the sponge lifetime. An implementation must
-/// forbid to finish the sponge usage if this pattern is violated.
+/// Enum to encode the [`Sponge::absorb`] and [`Sponge::squeeze`] calls and the
+/// amount of elements absorbed/squeezed during the sponge lifetime. An
+/// implementation must forbid to finish the sponge usage if this pattern is
+/// violated.
+///
 /// In particular, the output from SQUEEZE calls must not be used if the IO
 /// pattern is not followed.
-#[derive(Debug, Clone, PartialEq)]
-pub struct IOPattern(pub(crate) Vec<IOCall>);
-
-/// Enum to encode the calls to [`absorb`] and [`squeeze`] and the amount of
-/// elements to be absorbed or squeezed in each call.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum IOCall {
     /// Absorb `len: u32` elements into the state.
     Absorb(u32),
     /// Squeeze `len: u32` elements from the state.
     Squeeze(u32),
-}
-
-impl IOPattern {
-    /// Aggregate contiguous calls to absorb or squeeze into a single call,
-    /// e.g.:
-    /// `[Absorb(3), Absorb(3), Squeeze(1)] -> [Absorb(6), Squeeze(1)]`
-    pub(crate) fn aggregate(&mut self) {
-        unimplemented!();
-    }
 }
