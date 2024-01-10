@@ -87,6 +87,9 @@ impl<const N: usize> Sponge<N> {
 
             self.pos_absorb = 0;
         }
+        // NOTE: In the paper it says that the scalar at `pos_absorb` is used,
+        // but as I understand sponges, we need to add the capacity to the
+        // position.
         self.state[self.pos_absorb + Self::capacity()] += scalar;
         self.pos_absorb += 1;
     }
@@ -126,6 +129,9 @@ impl<const N: usize> Sponge<N> {
             self.pos_sqeeze = 0;
             self.pos_absorb = 0;
         }
+        // NOTE: In the paper it says that the scalar at `pos_squeeze` is
+        // returned, but as I understand sponges, we need to add the
+        // capacity to the position.
         self.state[self.pos_sqeeze + Self::capacity()]
     }
 
@@ -144,20 +150,24 @@ impl<const N: usize> Sponge<N> {
     }
 
     fn tag(&self) -> BlsScalar {
-        let mut encoded_input = Vec::new();
+        let mut input_u32 = Vec::new();
         for io_call in self.iopattern.0.iter() {
             match io_call {
-                IOCall::Absorb(len) => {
-                    encoded_input.push(0x8000_0000 + len.to_be())
-                }
-                IOCall::Squeeze(len) => encoded_input.push(len.to_be()),
+                IOCall::Absorb(len) => input_u32.push(0x8000_0000 + len),
+                IOCall::Squeeze(len) => input_u32.push(*len),
             }
         }
-        encoded_input.push((&self.domain_sep).into());
+        input_u32.push((&self.domain_sep).into());
 
-        // Hash the string obtained with the hasher H to a 256-bit tag T
+        let input_u8: Vec<u8> = input_u32
+            .iter()
+            .map(|u32_int| u32_int.to_be_bytes().into_iter())
+            .flatten()
+            .collect();
+
+        // Hash the string obtained with the hasher H to a 254-bit tag T
         // (truncating the hash if needed).
-        unimplemented!()
+        BlsScalar::hash_to_scalar(&input_u8)
     }
 }
 
