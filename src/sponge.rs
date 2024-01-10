@@ -73,12 +73,12 @@ impl<const N: usize> Sponge<N> {
         // Absorb `len` elements into the state, calling `permute` when the
         // absorb-position reached the rate.
         for scalar in input {
-            self.absorb_scalar_unchecked(scalar);
+            self.absorb_scalar(scalar);
         }
         Ok(())
     }
 
-    fn absorb_scalar_unchecked(&mut self, scalar: &BlsScalar) {
+    fn absorb_scalar(&mut self, scalar: &BlsScalar) {
         if self.pos_absorb == Self::rate() {
             // TODO: permute the state with a trait object
 
@@ -114,12 +114,11 @@ impl<const N: usize> Sponge<N> {
 
         // Squeeze 'len` scalar from the state, calling `permute` when the
         // squeeze-position reached the rate.
-        let output =
-            (0..len).map(|_| self.squeeze_scalar_unchecked()).collect();
+        let output = (0..len).map(|_| self.squeeze_scalar()).collect();
         Ok(output)
     }
 
-    fn squeeze_scalar_unchecked(&mut self) -> BlsScalar {
+    fn squeeze_scalar(&mut self) -> BlsScalar {
         if self.pos_sqeeze == Self::rate() {
             // TODO: permuts the state with a trait oject
 
