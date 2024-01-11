@@ -178,21 +178,22 @@ impl<const N: usize> Sponge<N> {
     }
 
     fn initialize_state(&mut self) {
-        let tag = self.tag();
+        // FIXME: insert tag method from permutation trait
+        // let tag = self.tag();
         self.state.iter_mut().enumerate().for_each(|(i, s)| {
             if i == 0 {
-                *s = tag;
+                // *s = tag;
             } else {
                 *s = BlsScalar::zero()
             }
         });
     }
 
-    /// Compute the tag for the sponge instance, using the domain-separator and
-    /// IO-pattern.
+    /// Encode the input for the tag for the sponge instance, using the
+    /// domain-separator and IO-pattern.
     ///
     /// Note: The IO-pattern is expected to be aggregated.
-    fn tag(&self) -> BlsScalar {
+    pub fn tag_input(&self) -> Vec<u8> {
         let mut input_u32 = Vec::new();
 
         // Encode calls to absorb and squeeze
@@ -206,14 +207,11 @@ impl<const N: usize> Sponge<N> {
         input_u32.push((&self.domain_sep).into());
 
         // Convert hash input to an array of u8, using big endian conversion
-        let input_u8: Vec<u8> = input_u32
+        input_u32
             .iter()
             .map(|u32_int| u32_int.to_be_bytes().into_iter())
             .flatten()
-            .collect();
-
-        // Hash the string obtained into a BlsScalar
-        BlsScalar::hash_to_scalar(&input_u8)
+            .collect()
     }
 }
 
@@ -255,25 +253,54 @@ pub enum IOCall {
 mod tests {
     use super::*;
 
-    fn verify_aggregation(iopattern: Vec<IOCall>, aggregated: Vec<IOCall>) {
+    fn verify_initialization(
+        iopattern: Vec<IOCall>,
+        aggregated: Vec<IOCall>,
+        tag: u32,
+    ) {
+        // Create an initialized sponge instance
         let instance: Sponge<5> =
-            Sponge::start(iopattern, DomainSeparator::from(0));
-        assert_eq!(instance.iopattern, aggregated)
+            Sponge::start(iopattern, DomainSeparator::from(tag));
+
+        // Check aggregation is as expected
+        assert_eq!(instance.iopattern, aggregated);
+
+        // Check tag input encoding is correct
+        let tag_input = instance.tag_input();
+        let mut input_chunks = tag_input.chunks(4);
+        // Check length
+        assert_eq!(input_chunks.len(), aggregated.len() + 1);
+        // Check io pattern encoding
+        aggregated.iter().for_each(|io| {
+            let io_encoded = input_chunks.next().unwrap();
+            match io {
+                IOCall::Absorb(len) => {
+                    assert_eq!(io_encoded, [0x80, 0x00, 0x00, *len as u8]);
+                }
+                IOCall::Squeeze(len) => {
+                    assert_eq!(io_encoded, [0x00, 0x00, 0x00, *len as u8]);
+                }
+            }
+        });
+        // Check domain separator encoding
+        let domain_encoded = input_chunks.next().unwrap();
+        assert_eq!(domain_encoded, [0x00, 0x00, 0x00, tag as u8]);
     }
 
     #[test]
-    fn aggregate() {
+    fn initialization() {
         let mut iopattern = Vec::new();
         let mut aggregated = Vec::new();
-        verify_aggregation(iopattern.clone(), aggregated.clone());
+        let tag = 0;
+        verify_initialization(iopattern.clone(), aggregated.clone(), tag);
 
         iopattern.push(IOCall::Absorb(2));
         aggregated.push(IOCall::Absorb(2));
-        verify_aggregation(iopattern.clone(), aggregated.clone());
+        verify_initialization(iopattern.clone(), aggregated.clone(), tag);
 
         iopattern.push(IOCall::Absorb(3));
         aggregated[0] = IOCall::Absorb(5);
-        verify_aggregation(iopattern.clone(), aggregated.clone());
+        verify_initialization(iopattern.clone(), aggregated.clone(), tag);
 
         iopattern.push(IOCall::Absorb(2));
         iopattern.push(IOCall::Absorb(2));
@@ -281,16 +308,17 @@ mod tests {
         iopattern.push(IOCall::Squeeze(1));
         aggregated[0] = IOCall::Absorb(11);
         aggregated.push(IOCall::Squeeze(1));
-        verify_aggregation(iopattern.clone(), aggregated.clone());
+        verify_initialization(iopattern.clone(), aggregated.clone(), tag);
 
         iopattern.push(IOCall::Squeeze(1));
         aggregated[1] = IOCall::Squeeze(1 + 1);
-        verify_aggregation(iopattern.clone(), aggregated.clone());
+        verify_initialization(iopattern.clone(), aggregated.clone(), tag);
 
         iopattern.push(IOCall::Absorb(2));
         iopattern.push(IOCall::Squeeze(1));
         aggregated.push(IOCall::Absorb(2));
         aggregated.push(IOCall::Squeeze(1));
-        verify_aggregation(iopattern.clone(), aggregated.clone());
+        let tag = 1;
+        verify_initialization(iopattern.clone(), aggregated.clone(), tag);
     }
 }
