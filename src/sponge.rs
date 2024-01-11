@@ -145,7 +145,36 @@ impl<const N: usize> Sponge<N> {
     /// e.g.:
     /// `[Absorb(3), Absorb(3), Squeeze(1)] -> [Absorb(6), Squeeze(1)]`
     fn aggregate_io_pattern(&mut self) {
-        unimplemented!();
+        // NOTE: Should the io pattern be checked more thoroughly here, e.g.:
+        //   - start with absorb
+        //   - end with squeeze
+        let mut i = 0;
+        loop {
+            // Since we remove items from the vector within this loop, we need
+            // to check for an overflow at each iteration.
+            if self.iopattern.len() == 0
+                || self.iopattern.len() == 1
+                || i >= self.iopattern.len() - 1
+            {
+                return;
+            }
+            // Compare iopattern[i] and iopattern[i + 1].
+            match (self.iopattern[i], self.iopattern[i + 1]) {
+                // Aggregate two subsequent calls to absorb.
+                (IOCall::Absorb(len1), IOCall::Absorb(len2)) => {
+                    self.iopattern[i] = IOCall::Absorb(len1 + len2);
+                    self.iopattern.remove(i + 1);
+                }
+                // Aggregate two subsequent calls to squeeze.
+                (IOCall::Squeeze(len1), IOCall::Squeeze(len2)) => {
+                    self.iopattern[i] = IOCall::Squeeze(len1 + len2);
+                    self.iopattern.remove(i + 1);
+                }
+                // When the i-th call is different from the (i + 1)-th call, we
+                // look at the next index.
+                _ => i += 1,
+            }
+        }
     }
 
     fn initialize_state(&mut self) {
@@ -162,14 +191,14 @@ impl<const N: usize> Sponge<N> {
     /// Compute the tag for the sponge instance, using the domain-separator and
     /// IO-pattern.
     ///
-    /// Note: The IO-pattern is expected to be aggragated.
+    /// Note: The IO-pattern is expected to be aggregated.
     fn tag(&self) -> BlsScalar {
         let mut input_u32 = Vec::new();
 
         // Encode calls to absorb and squeeze
         for io_call in self.iopattern.iter() {
             match io_call {
-                IOCall::Absorb(len) => input_u32.push(0x8000_0000 + len),
+                IOCall::Absorb(len) => input_u32.push(0x8000_0000 + *len),
                 IOCall::Squeeze(len) => input_u32.push(*len),
             }
         }
@@ -220,4 +249,48 @@ pub enum IOCall {
     Absorb(u32),
     /// Squeeze `len: u32` elements from the state.
     Squeeze(u32),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn verify_aggregation(iopattern: Vec<IOCall>, aggregated: Vec<IOCall>) {
+        let instance: Sponge<5> =
+            Sponge::start(iopattern, DomainSeparator::from(0));
+        assert_eq!(instance.iopattern, aggregated)
+    }
+
+    #[test]
+    fn aggregate() {
+        let mut iopattern = Vec::new();
+        let mut aggregated = Vec::new();
+        verify_aggregation(iopattern.clone(), aggregated.clone());
+
+        iopattern.push(IOCall::Absorb(2));
+        aggregated.push(IOCall::Absorb(2));
+        verify_aggregation(iopattern.clone(), aggregated.clone());
+
+        iopattern.push(IOCall::Absorb(3));
+        aggregated[0] = IOCall::Absorb(5);
+        verify_aggregation(iopattern.clone(), aggregated.clone());
+
+        iopattern.push(IOCall::Absorb(2));
+        iopattern.push(IOCall::Absorb(2));
+        iopattern.push(IOCall::Absorb(2));
+        iopattern.push(IOCall::Squeeze(1));
+        aggregated[0] = IOCall::Absorb(11);
+        aggregated.push(IOCall::Squeeze(1));
+        verify_aggregation(iopattern.clone(), aggregated.clone());
+
+        iopattern.push(IOCall::Squeeze(1));
+        aggregated[1] = IOCall::Squeeze(1 + 1);
+        verify_aggregation(iopattern.clone(), aggregated.clone());
+
+        iopattern.push(IOCall::Absorb(2));
+        iopattern.push(IOCall::Squeeze(1));
+        aggregated.push(IOCall::Absorb(2));
+        aggregated.push(IOCall::Squeeze(1));
+        verify_aggregation(iopattern.clone(), aggregated.clone());
+    }
 }
