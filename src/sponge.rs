@@ -149,7 +149,14 @@ impl<const N: usize> Sponge<N> {
     }
 
     fn initialize_state(&mut self) {
-        self.state[0] = self.tag();
+        let tag = self.tag();
+        self.state.iter_mut().enumerate().for_each(|(i, s)| {
+            if i == 0 {
+                *s = tag;
+            } else {
+                *s = BlsScalar::zero()
+            }
+        });
     }
 
     /// Compute the tag for the sponge instance, using the domain-separator and
