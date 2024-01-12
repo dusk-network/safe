@@ -5,9 +5,9 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use alloc::vec::Vec;
-// use core::ops::AddAssign;
+use core::ops::AddAssign;
 
-use dusk_bls12_381::BlsScalar;
+// use dusk_bls12_381::BlsScalar;
 
 use crate::Error;
 
@@ -29,21 +29,22 @@ where
     fn tag(input: &[u8]) -> T;
 
     /// Initialize the state of the permutation
-    fn initialize_state(tag_input: &[u8]) -> [T; N] {
+    fn initialize_state(tag: T) -> [T; N] {
         let mut state = [T::default(); N];
-        state[0] = Self::tag(tag_input);
+        state[0] = tag;
         state
     }
 }
 
-/// Sponge over [`BlsScalar`], generic over `N`, the width of the inner
-/// permutation container. The capacity is fixed to the size of one
-/// [`BlsScalar`] and the rate is fixed to the size of `N - 1` [`BlsScalar`].
+/// Sponge generic over: `T` the type of the field elements and `N` the width of
+/// the inner permutation container. The capacity is fixed to the size of one
+/// field element and the rate is fixed to the size of `N - 1` field elements.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Sponge<P, const N: usize>
+pub struct Sponge<P, T, const N: usize>
 where
-    P: Permutation<BlsScalar, N>,
-    // T: AddAssign,
+    P: Permutation<T, N>,
+    T: Default + Copy,
+    // T: AddAssign + Default + Copy,
 {
     state: P,
     pos_absorb: usize,
@@ -51,21 +52,22 @@ where
     pos_io: usize,
     iopattern: Vec<IOCall>,
     domain_sep: DomainSeparator,
+    tag: T,
 }
 
-impl<P, const N: usize> Sponge<P, N>
+impl<P, T, const N: usize> Sponge<P, T, N>
 where
-    P: Permutation<BlsScalar, N>,
-    // T: AddAssign,
+    P: Permutation<T, N>,
+    T: AddAssign + Default + Copy,
 {
     /// This initializes the inner state of the sponge, modifying up to c/2
-    /// [`BlsScalar`] of the state.
+    /// field elements of the state.
     /// It’s done once in the lifetime of a sponge.
     pub fn start(iopattern: Vec<IOCall>, domain_sep: DomainSeparator) -> Self {
         let mut iopattern = iopattern;
         aggregate_io_pattern(&mut iopattern);
-        let tag_input = tag_input(&iopattern, &domain_sep);
-        let state = P::initialize_state(&tag_input);
+        let tag = P::tag(&tag_input(&iopattern, &domain_sep));
+        let state = P::initialize_state(tag);
 
         Self {
             state: P::new(state),
@@ -74,17 +76,14 @@ where
             pos_io: 0,
             iopattern,
             domain_sep,
+            tag,
         }
     }
 
-    /// This injects `len` [`BlsScalar`] to the state from the scalar array,
-    /// interleaving calls to the permutation.
+    /// This injects `len` field elements to the state from the field elements
+    /// array, interleaving calls to the permutation.
     /// It also checks if the current call matches the IO pattern.
-    pub fn absorb(
-        &mut self,
-        len: usize,
-        input: &[BlsScalar],
-    ) -> Result<(), Error> {
+    pub fn absorb(&mut self, len: usize, input: &[T]) -> Result<(), Error> {
         // Check that the io-pattern is not violated
         if self.pos_io >= self.iopattern.len() {
             return Err(Error::IOPatternViolation);
@@ -104,29 +103,29 @@ where
 
         // Absorb `len` elements into the state, calling `permute` when the
         // absorb-position reached the rate.
-        for scalar in input {
-            self.absorb_scalar(scalar);
+        for element in input {
+            self.absorb_element(element);
         }
         Ok(())
     }
 
-    fn absorb_scalar(&mut self, scalar: &BlsScalar) {
+    fn absorb_element(&mut self, element: &T) {
         if self.pos_absorb == Self::rate() {
             // TODO: permute the state with a trait object
 
             self.pos_absorb = 0;
         }
-        // NOTE: In the paper it says that the scalar at `pos_absorb` is used,
-        // but as I understand sponges, we need to add the capacity to the
-        // position.
-        self.state.inner_mut()[self.pos_absorb + Self::capacity()] += scalar;
+        // NOTE: In the paper it says that the field element at `pos_absorb` is
+        // used, but as I understand sponges, we need to add the
+        // capacity to the position.
+        self.state.inner_mut()[self.pos_absorb + Self::capacity()] += *element;
         self.pos_absorb += 1;
     }
 
-    /// This extracts `len` [`BlsScalar`] from the state, interleaving calls to
+    /// This extracts `len` field elements from the state, interleaving calls to
     /// the permutation.
     /// It also checks if the current call matches the IO pattern.
-    pub fn squeeze(&mut self, len: usize) -> Result<Vec<BlsScalar>, Error> {
+    pub fn squeeze(&mut self, len: usize) -> Result<Vec<T>, Error> {
         // Check that the io-pattern is not violated
         if self.pos_io >= self.iopattern.len() {
             return Err(Error::IOPatternViolation);
@@ -144,20 +143,20 @@ where
             }
         };
 
-        // Squeeze 'len` scalar from the state, calling `permute` when the
-        // squeeze-position reached the rate.
-        let output = (0..len).map(|_| self.squeeze_scalar()).collect();
+        // Squeeze 'len` field elements from the state, calling `permute` when
+        // the squeeze-position reached the rate.
+        let output = (0..len).map(|_| self.squeeze_element()).collect();
         Ok(output)
     }
 
-    fn squeeze_scalar(&mut self) -> BlsScalar {
+    fn squeeze_element(&mut self) -> T {
         if self.pos_sqeeze == Self::rate() {
             // TODO: permuts the state with a trait oject
 
             self.pos_sqeeze = 0;
             self.pos_absorb = 0;
         }
-        // NOTE: In the paper it says that the scalar at `pos_squeeze` is
+        // NOTE: In the paper it says that the field element at `pos_squeeze` is
         // returned, but as I understand sponges, we need to add the
         // capacity to the position.
         self.state.inner_mut()[self.pos_sqeeze + Self::capacity()]
