@@ -106,18 +106,27 @@ where
         for element in input {
             self.absorb_element(element);
         }
+
+        // Set squeeze position to rate to trigger a permutation at the next
+        // call to squeeze
+        self.pos_sqeeze = Self::rate();
+
+        // Increase the position for the io pattern
+        self.pos_io += 1;
+
         Ok(())
     }
 
     fn absorb_element(&mut self, element: &T) {
         if self.pos_absorb == Self::rate() {
             // TODO: permute the state with a trait object
+            self.state.permute();
 
             self.pos_absorb = 0;
         }
         // NOTE: In the paper it says that the field element at `pos_absorb` is
         // used, but as I understand sponges, we need to add the
-        // capacity to the position.
+        // capacity to that position (provided we start counting at 0).
         self.state.inner_mut()[self.pos_absorb + Self::capacity()] += *element;
         self.pos_absorb += 1;
     }
@@ -146,19 +155,24 @@ where
         // Squeeze 'len` field elements from the state, calling `permute` when
         // the squeeze-position reached the rate.
         let output = (0..len).map(|_| self.squeeze_element()).collect();
+
+        // Increase the position for the io pattern
+        self.pos_io += 1;
+
         Ok(output)
     }
 
     fn squeeze_element(&mut self) -> T {
         if self.pos_sqeeze == Self::rate() {
             // TODO: permuts the state with a trait oject
+            self.state.permute();
 
             self.pos_sqeeze = 0;
             self.pos_absorb = 0;
         }
         // NOTE: In the paper it says that the field element at `pos_squeeze` is
         // returned, but as I understand sponges, we need to add the
-        // capacity to the position.
+        // capacity to that position (provided we start counting at 0).
         self.state.inner_mut()[self.pos_sqeeze + Self::capacity()]
     }
 
