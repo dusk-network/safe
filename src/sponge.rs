@@ -7,20 +7,26 @@
 use alloc::vec::Vec;
 use core::ops::AddAssign;
 
-// use dusk_bls12_381::BlsScalar;
+#[cfg(features = "zk")]
+use dusk_plonk::prelude::Composer;
 
 use crate::{DomainSeparator, Error, IOCall};
 
-/// Trait to define the behavior of the state permutation
+/// Trait to define the behavior of the sponge permutation
 pub trait Permutation<T, const N: usize>
 where
     T: Default + Copy,
 {
     /// Create a new state for the permutation
+    #[cfg(not(featues = "zk"))]
     fn new(state: [T; N]) -> Self;
 
+    /// Create a new state for the permutation
+    #[cfg(featues = "zk")]
+    fn new(composer: &mut Composer, state: [T; N]) -> Self;
+
     /// Return the inner state of the permutation
-    fn inner_mut(&mut self) -> &mut [T; N];
+    fn state_mut(&mut self) -> &mut [T; N];
 
     /// Permute the state of the permutation
     fn permute(&mut self);
@@ -46,7 +52,7 @@ where
     T: Default + Copy,
     // T: AddAssign + Default + Copy,
 {
-    state: P,
+    permutation: P,
     pos_absorb: usize,
     pos_sqeeze: usize,
     pos_io: usize,
@@ -60,9 +66,10 @@ where
     P: Permutation<T, N>,
     T: AddAssign + Default + Copy,
 {
-    /// This initializes the inner state of the sponge, modifying up to c/2
-    /// field elements of the state.
+    /// This initializes the inner state of the sponge permutation, modifying up
+    /// to c/2 field elements of the state.
     /// It’s done once in the lifetime of a sponge.
+    #[cfg(not(featues = "zk"))]
     pub fn start(iopattern: Vec<IOCall>, domain_sep: DomainSeparator) -> Self {
         let mut iopattern = iopattern;
         crate::aggregate_io_pattern(&mut iopattern);
@@ -70,7 +77,32 @@ where
         let state = P::initialize_state(tag);
 
         Self {
-            state: P::new(state),
+            permutation: P::new(state),
+            pos_absorb: 0,
+            pos_sqeeze: 0,
+            pos_io: 0,
+            iopattern,
+            domain_sep,
+            tag,
+        }
+    }
+
+    /// This initializes the inner state of the sponge permutation, modifying up
+    /// to c/2 field elements of the state.
+    /// It’s done once in the lifetime of a sponge.
+    #[cfg(featues = "zk")]
+    pub fn start(
+        composer: &mut Composer,
+        iopattern: Vec<IOCall>,
+        domain_sep: DomainSeparator,
+    ) -> Self {
+        let mut iopattern = iopattern;
+        crate::aggregate_io_pattern(&mut iopattern);
+        let tag = P::tag(&crate::tag_input(&iopattern, &domain_sep));
+        let state = P::initialize_state(tag);
+
+        Self {
+            permutation: P::new(composer, state),
             pos_absorb: 0,
             pos_sqeeze: 0,
             pos_io: 0,
@@ -92,10 +124,15 @@ where
             IOCall::Squeeze(_) => {
                 return Err(Error::IOPatternViolation);
             }
-            IOCall::Absorb(absorb_len) => {
-                if absorb_len as usize != len {
-                    return Err(Error::InvalidAbsorbLen(absorb_len, len));
-                } else if absorb_len == 0 {
+            IOCall::Absorb(expected_len) => {
+                if (expected_len as usize) < len || input.len() < len {
+                    return Err(Error::InvalidAbsorbLen(len));
+                } else if (expected_len as usize) > len {
+                    let remaining_len = expected_len - len as u32;
+                    self.iopattern[self.pos_io] = IOCall::Absorb(len as u32);
+                    self.iopattern
+                        .insert(self.pos_io + 1, IOCall::Absorb(remaining_len));
+                } else if expected_len == 0 {
                     return Ok(());
                 }
             }
@@ -103,9 +140,9 @@ where
 
         // Absorb `len` elements into the state, calling [`permute`] when the
         // absorb-position reached the rate.
-        for element in input {
+        for element in input.iter().take(len) {
             if self.pos_absorb == Self::rate() {
-                self.state.permute();
+                self.permutation.permute();
 
                 self.pos_absorb = 0;
             }
@@ -113,7 +150,7 @@ where
             // is used, but as I understand sponges, we need to add
             // the capacity to that position (provided we start
             // counting at 0).
-            self.state.inner_mut()[self.pos_absorb + Self::capacity()] +=
+            self.permutation.state_mut()[self.pos_absorb + Self::capacity()] +=
                 *element;
             self.pos_absorb += 1;
         }
@@ -140,10 +177,10 @@ where
             IOCall::Absorb(_) => {
                 return Err(Error::IOPatternViolation);
             }
-            IOCall::Squeeze(squeeze_len) => {
-                if squeeze_len as usize != len {
-                    return Err(Error::InvalidSqueezeLen(squeeze_len, len));
-                } else if squeeze_len == 0 {
+            IOCall::Squeeze(expected_len) => {
+                if expected_len as usize != len {
+                    return Err(Error::InvalidSqueezeLen(len));
+                } else if expected_len == 0 {
                     return Ok(Vec::new());
                 }
             }
@@ -154,7 +191,7 @@ where
         let mut output = Vec::with_capacity(len);
         for _ in 0..len {
             if self.pos_sqeeze == Self::rate() {
-                self.state.permute();
+                self.permutation.permute();
 
                 self.pos_sqeeze = 0;
                 self.pos_absorb = 0;
@@ -164,7 +201,8 @@ where
             // sponges, we need to add the capacity to that position
             // (provided we start counting at 0).
             output.push(
-                self.state.inner_mut()[self.pos_sqeeze + Self::capacity()],
+                self.permutation.state_mut()
+                    [self.pos_sqeeze + Self::capacity()],
             );
         }
 

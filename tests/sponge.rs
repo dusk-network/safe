@@ -19,7 +19,7 @@ impl Permutation<u8, N> for State {
         Self(state)
     }
 
-    fn inner_mut(&mut self) -> &mut [u8; N] {
+    fn state_mut(&mut self) -> &mut [u8; N] {
         &mut self.0
     }
 
