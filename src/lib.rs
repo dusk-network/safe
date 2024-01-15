@@ -30,9 +30,9 @@ impl From<u32> for DomainSeparator {
     }
 }
 
-impl Into<u32> for &DomainSeparator {
-    fn into(self) -> u32 {
-        self.0
+impl From<&DomainSeparator> for u32 {
+    fn from(value: &DomainSeparator) -> Self {
+        value.0
     }
 }
 
@@ -62,7 +62,7 @@ fn aggregate_io_pattern(iopattern: &mut Vec<IOCall>) {
     loop {
         // Since we remove items from the vector within this loop, we need
         // to check for an overflow at each iteration.
-        if iopattern.len() == 0
+        if iopattern.is_empty()
             || iopattern.len() == 1
             || i >= iopattern.len() - 1
         {
@@ -93,7 +93,7 @@ fn aggregate_io_pattern(iopattern: &mut Vec<IOCall>) {
 /// Note: The IO-pattern is expected to be aggregated *before* creating the tag
 /// input.
 pub fn tag_input(
-    iopattern: &Vec<IOCall>,
+    iopattern: &[IOCall],
     domain_sep: &DomainSeparator,
 ) -> Vec<u8> {
     let mut input_u32 = Vec::new();
@@ -111,8 +111,7 @@ pub fn tag_input(
     // Convert hash input to an array of u8, using big endian conversion
     input_u32
         .iter()
-        .map(|u32_int| u32_int.to_be_bytes().into_iter())
-        .flatten()
+        .flat_map(|u32_int| u32_int.to_be_bytes().into_iter())
         .collect()
 }
 

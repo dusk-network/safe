@@ -7,7 +7,7 @@
 use dusk_bls12_381::BlsScalar;
 use dusk_bytes::ParseHexStr;
 use dusk_hades::{ScalarStrategy, Strategy, WIDTH};
-use safe::{DomainSeparator, Error, IOCall, Permutation, Sponge};
+use safe::{DomainSeparator, IOCall, Permutation, Sponge};
 
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
 struct State([BlsScalar; WIDTH]);
