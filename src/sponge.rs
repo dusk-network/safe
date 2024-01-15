@@ -125,15 +125,24 @@ where
                 return Err(Error::IOPatternViolation);
             }
             IOCall::Absorb(expected_len) => {
-                if (expected_len as usize) < len || input.len() < len {
+                // TODO: check what to do when the given absorb len is 0
+                if len == 0 {
+                    self.pos_io += 1;
+                    return Ok(());
+                }
+                // Return error if we try to absorb more elements than expected
+                // by the io-pattern, or if the given input doesn't yield enough
+                // elements.
+                else if (expected_len as usize) < len || input.len() < len {
                     return Err(Error::InvalidAbsorbLen(len));
-                } else if (expected_len as usize) > len {
+                }
+                // Modify the internal io-pattern if we absorb less elements
+                // than expected by the io-pattern.
+                else if (expected_len as usize) > len {
                     let remaining_len = expected_len - len as u32;
                     self.iopattern[self.pos_io] = IOCall::Absorb(len as u32);
                     self.iopattern
                         .insert(self.pos_io + 1, IOCall::Absorb(remaining_len));
-                } else if expected_len == 0 {
-                    return Ok(());
                 }
             }
         }
@@ -178,10 +187,15 @@ where
                 return Err(Error::IOPatternViolation);
             }
             IOCall::Squeeze(expected_len) => {
-                if expected_len as usize != len {
-                    return Err(Error::InvalidSqueezeLen(len));
-                } else if expected_len == 0 {
+                // TODO: check what to do when the given squeeze len is 0
+                if len == 0 {
+                    self.pos_io += 1;
                     return Ok(Vec::new());
+                }
+                // Return error if we try to squeeze more elements than expected
+                // by the io-pattern.
+                else if (expected_len as usize) < len {
+                    return Err(Error::InvalidSqueezeLen(len));
                 }
             }
         };
