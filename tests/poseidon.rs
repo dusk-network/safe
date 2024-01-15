@@ -85,7 +85,8 @@ fn create_poseidon_hash(input: &[BlsScalar]) -> BlsScalar {
     sponge
         .absorb(1, &[BlsScalar::one()])
         .expect("Absorbtion of padding should work fine");
-    let output = sponge.squeeze(1).expect("Squeezing should work fine");
+    sponge.squeeze(1).expect("Squeezing should work fine");
+    let output = sponge.finish().expect("Finish should work fine");
     output[0]
 }
 

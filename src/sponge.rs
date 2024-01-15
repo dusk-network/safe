@@ -59,6 +59,7 @@ where
     iopattern: Vec<IOCall>,
     domain_sep: DomainSeparator,
     tag: T,
+    output: Vec<T>,
 }
 
 impl<P, T, const N: usize> Sponge<P, T, N>
@@ -84,6 +85,7 @@ where
             iopattern,
             domain_sep,
             tag,
+            output: Vec::new(),
         }
     }
 
@@ -109,6 +111,26 @@ where
             iopattern,
             domain_sep,
             tag,
+            output: Vec::new(),
+        }
+    }
+
+    /// This marks the end of the sponge life, preventing any further operation.
+    /// In particular, the state is erased from memory. The result is ‘OK’, or
+    /// an error
+    // NOTE: in the specs a length is given as a parameter but I don't
+    // understand what for
+    pub fn finish(mut self) -> Result<Vec<T>, Error> {
+        if self.pos_io != self.iopattern.len() {
+            return Err(Error::IOPatternViolation);
+        } else {
+            self.permutation
+                .state_mut()
+                .iter_mut()
+                .for_each(|s| *s = T::default());
+            self.pos_absorb = 0;
+            self.pos_sqeeze = 0;
+            return Ok(self.output);
         }
     }
 
@@ -177,7 +199,7 @@ where
     /// This extracts `len` field elements from the state, interleaving calls to
     /// the permutation.
     /// It also checks if the current call matches the IO pattern.
-    pub fn squeeze(&mut self, len: usize) -> Result<Vec<T>, Error> {
+    pub fn squeeze(&mut self, len: usize) -> Result<(), Error> {
         // Check that the io-pattern is not violated
         if self.pos_io >= self.iopattern.len() {
             return Err(Error::IOPatternViolation);
@@ -190,7 +212,7 @@ where
                 // TODO: check what to do when the given squeeze len is 0
                 if len == 0 {
                     self.pos_io += 1;
-                    return Ok(Vec::new());
+                    return Ok(());
                 }
                 // Return error if we try to squeeze more elements than expected
                 // by the io-pattern.
@@ -202,7 +224,6 @@ where
 
         // Squeeze 'len` field elements from the state, calling [`permute`] when
         // the squeeze-position reached the rate.
-        let mut output = Vec::with_capacity(len);
         for _ in 0..len {
             if self.pos_sqeeze == Self::rate() {
                 self.permutation.permute();
@@ -214,7 +235,7 @@ where
             // `pos_squeeze` is returned, but as I understand
             // sponges, we need to add the capacity to that position
             // (provided we start counting at 0).
-            output.push(
+            self.output.push(
                 self.permutation.state_mut()
                     [self.pos_sqeeze + Self::capacity()],
             );
@@ -223,7 +244,7 @@ where
         // Increase the position for the io pattern
         self.pos_io += 1;
 
-        Ok(output)
+        Ok(())
     }
 
     /// The capacity of the sponge instance.

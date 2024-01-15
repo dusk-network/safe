@@ -50,7 +50,7 @@ fn sponge() {
     sponge
         .absorb(N - 1, &[1, 2, 3, 4, 5, 6])
         .expect("absorbing should not fail");
-    let output = sponge.squeeze(1).expect("squeezing should not fail");
-    println!("{:?}", sponge);
+    sponge.squeeze(1).expect("squeezing should not fail");
+    let output = sponge.finish().expect("Finishing should not fail");
     assert_eq!(output[0], 2);
 }
