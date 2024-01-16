@@ -58,14 +58,13 @@ fn aggregate_io_pattern(iopattern: &mut Vec<IOCall>) {
     // NOTE: Should the io pattern be checked more thoroughly here, e.g.:
     //   - start with absorb
     //   - end with squeeze
+    //   - have no len == 0
+    //   and if there is an error, should the io-pattern be erased?
     let mut i = 0;
     loop {
-        // Since we remove items from the vector within this loop, we need
-        // to check for an overflow at each iteration.
-        if iopattern.is_empty()
-            || iopattern.len() == 1
-            || i >= iopattern.len() - 1
-        {
+        // Since we possibly remove items from the vector within this loop, we
+        // need to check for the current length at each iteration.
+        if iopattern.len() <= 1 || iopattern.len() - 2 < i {
             return;
         }
         // Compare iopattern[i] and iopattern[i + 1].
@@ -192,8 +191,9 @@ mod tests {
         verify_tag_input(&iopattern, 42);
 
         iopattern.push(IOCall::Absorb(2));
+        iopattern.push(IOCall::Absorb(2));
         iopattern.push(IOCall::Squeeze(1));
-        aggregated.push(IOCall::Absorb(2));
+        aggregated.push(IOCall::Absorb(4));
         aggregated.push(IOCall::Squeeze(1));
         // Check aggregation
         aggregate_io_pattern(&mut iopattern);
