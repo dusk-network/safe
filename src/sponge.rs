@@ -121,16 +121,20 @@ where
     // NOTE: in the specs a length is given as a parameter but I don't
     // understand what for
     pub fn finish(mut self) -> Result<Vec<T>, Error> {
-        if self.pos_io != self.iopattern.len() {
-            return Err(Error::IOPatternViolation);
-        } else {
-            self.permutation
-                .state_mut()
-                .iter_mut()
-                .for_each(|s| *s = T::default());
-            self.pos_absorb = 0;
-            self.pos_sqeeze = 0;
-            return Ok(self.output);
+        // Erase state and its variables except for the io-pattern and its
+        // corresponding position.
+        self.permutation
+            .state_mut()
+            .iter_mut()
+            .for_each(|s| *s = T::default());
+        self.pos_absorb = 0;
+        self.pos_sqeeze = 0;
+        self.tag = T::default();
+        self.domain_sep = DomainSeparator::from(0);
+
+        match self.pos_io == self.iopattern.len() {
+            true => Ok(self.output),
+            false => Err(Error::IOPatternViolation),
         }
     }
 
@@ -147,7 +151,7 @@ where
                 return Err(Error::IOPatternViolation);
             }
             IOCall::Absorb(expected_len) => {
-                // TODO: check what to do when the given absorb len is 0
+                // NOTE: check what to do when the given absorb len is 0
                 if len == 0 {
                     self.pos_io += 1;
                     return Ok(());
@@ -155,12 +159,12 @@ where
                 // Return error if we try to absorb more elements than expected
                 // by the io-pattern, or if the given input doesn't yield enough
                 // elements.
-                else if (expected_len as usize) < len || input.len() < len {
+                else if len > expected_len as usize || len > input.len() {
                     return Err(Error::InvalidAbsorbLen(len));
                 }
-                // Modify the internal io-pattern if we absorb less elements
-                // than expected by the io-pattern.
-                else if (expected_len as usize) > len {
+                // Insert another call to absorb into the internal io-pattern if
+                // we absorb less elements than expected.
+                else if len < expected_len as usize {
                     let remaining_len = expected_len - len as u32;
                     self.iopattern[self.pos_io] = IOCall::Absorb(len as u32);
                     self.iopattern
@@ -209,15 +213,25 @@ where
                 return Err(Error::IOPatternViolation);
             }
             IOCall::Squeeze(expected_len) => {
-                // TODO: check what to do when the given squeeze len is 0
+                // NOTE: check what to do when the given squeeze len is 0
                 if len == 0 {
                     self.pos_io += 1;
                     return Ok(());
                 }
                 // Return error if we try to squeeze more elements than expected
                 // by the io-pattern.
-                else if (expected_len as usize) < len {
+                else if len > expected_len as usize {
                     return Err(Error::InvalidSqueezeLen(len));
+                }
+                // Insert another call to squeeze into the internal io-pattern
+                // if we absorb less elements than expected.
+                else if len < expected_len as usize {
+                    let remaining_len = expected_len - len as u32;
+                    self.iopattern[self.pos_io] = IOCall::Squeeze(len as u32);
+                    self.iopattern.insert(
+                        self.pos_io + 1,
+                        IOCall::Squeeze(remaining_len),
+                    );
                 }
             }
         };
