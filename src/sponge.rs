@@ -7,9 +7,6 @@
 use alloc::vec::Vec;
 use core::ops::AddAssign;
 
-#[cfg(features = "zk")]
-use dusk_plonk::prelude::Composer;
-
 use crate::{DomainSeparator, Error, IOCall};
 
 /// Trait to define the behavior of the sponge permutation
@@ -18,12 +15,7 @@ where
     T: Default + Copy,
 {
     /// Create a new state for the permutation
-    #[cfg(not(featues = "zk"))]
     fn new(state: [T; N]) -> Self;
-
-    /// Create a new state for the permutation
-    #[cfg(featues = "zk")]
-    fn new(composer: &mut Composer, state: [T; N]) -> Self;
 
     /// Return the inner state of the permutation
     fn state_mut(&mut self) -> &mut [T; N];
@@ -70,7 +62,6 @@ where
     /// This initializes the inner state of the sponge permutation, modifying up
     /// to c/2 field elements of the state.
     /// It’s done once in the lifetime of a sponge.
-    #[cfg(not(featues = "zk"))]
     pub fn start(iopattern: Vec<IOCall>, domain_sep: DomainSeparator) -> Self {
         let mut iopattern = iopattern;
         crate::aggregate_io_pattern(&mut iopattern);
@@ -79,32 +70,6 @@ where
 
         Self {
             permutation: P::new(state),
-            pos_absorb: 0,
-            pos_sqeeze: 0,
-            pos_io: 0,
-            iopattern,
-            domain_sep,
-            tag,
-            output: Vec::new(),
-        }
-    }
-
-    /// This initializes the inner state of the sponge permutation, modifying up
-    /// to c/2 field elements of the state.
-    /// It’s done once in the lifetime of a sponge.
-    #[cfg(featues = "zk")]
-    pub fn start(
-        composer: &mut Composer,
-        iopattern: Vec<IOCall>,
-        domain_sep: DomainSeparator,
-    ) -> Self {
-        let mut iopattern = iopattern;
-        crate::aggregate_io_pattern(&mut iopattern);
-        let tag = P::tag(&crate::tag_input(&iopattern, &domain_sep));
-        let state = P::initialize_state(tag);
-
-        Self {
-            permutation: P::new(composer, state),
             pos_absorb: 0,
             pos_sqeeze: 0,
             pos_io: 0,
