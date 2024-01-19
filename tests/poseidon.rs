@@ -13,10 +13,6 @@ use safe::{DomainSeparator, IOCall, Permutation, Sponge};
 struct State([BlsScalar; WIDTH]);
 
 impl Permutation<BlsScalar, WIDTH> for State {
-    fn new(state: [BlsScalar; WIDTH]) -> Self {
-        Self(state)
-    }
-
     fn state_mut(&mut self) -> &mut [BlsScalar; WIDTH] {
         &mut self.0
     }
@@ -30,6 +26,16 @@ impl Permutation<BlsScalar, WIDTH> for State {
     fn tag(input: &[u8]) -> BlsScalar {
         let _ = input;
         BlsScalar::zero()
+    }
+
+    fn zero_value() -> BlsScalar {
+        BlsScalar::zero()
+    }
+}
+
+impl State {
+    pub fn new(state: [BlsScalar; WIDTH]) -> Self {
+        Self(state)
     }
 }
 
@@ -74,8 +80,9 @@ fn create_poseidon_hash(input: &[BlsScalar]) -> BlsScalar {
     iopattern.push(IOCall::Absorb(1));
     iopattern.push(IOCall::Squeeze(1));
 
-    let mut sponge: Sponge<State, BlsScalar, WIDTH> =
-        Sponge::start(iopattern, DomainSeparator::from(0));
+    let state = State::new([BlsScalar::zero(); WIDTH]);
+
+    let mut sponge = Sponge::start(state, iopattern, DomainSeparator::from(0));
     // absorb given input
     sponge
         .absorb(input.len(), input)

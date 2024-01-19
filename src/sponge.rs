@@ -9,28 +9,31 @@ use core::ops::AddAssign;
 
 use crate::{DomainSeparator, Error, IOCall};
 
-/// Trait to define the behavior of the sponge permutation
+/// Trait to define the behavior of the sponge permutation.
 pub trait Permutation<T, const N: usize>
 where
-    T: Default + Copy,
+    T: Copy,
 {
-    /// Create a new state for the permutation
-    fn new(state: [T; N]) -> Self;
-
-    /// Return the inner state of the permutation
+    /// Return the inner state of the permutation.
     fn state_mut(&mut self) -> &mut [T; N];
 
-    /// Permute the state of the permutation
+    /// Permute the state of the permutation.
     fn permute(&mut self);
 
-    /// Create the tag by hashing the tag input
+    /// Create the tag by hashing the tag input.
     fn tag(input: &[u8]) -> T;
 
-    /// Initialize the state of the permutation
-    fn initialize_state(tag: T) -> [T; N] {
-        let mut state = [T::default(); N];
-        state[0] = tag;
-        state
+    /// Return the zero value of type `T`.
+    fn zero_value() -> T;
+
+    /// Initialize the state of the permutation.
+    fn initialize_state(&mut self, tag: T) {
+        self.state_mut().iter_mut().enumerate().for_each(|(i, s)| {
+            *s = match i {
+                0 => tag,
+                _ => Self::zero_value(),
+            }
+        });
     }
 }
 
@@ -41,8 +44,7 @@ where
 pub struct Sponge<P, T, const N: usize>
 where
     P: Permutation<T, N>,
-    T: Default + Copy,
-    // T: AddAssign + Default + Copy,
+    T: Copy,
 {
     permutation: P,
     pos_absorb: usize,
@@ -57,19 +59,25 @@ where
 impl<P, T, const N: usize> Sponge<P, T, N>
 where
     P: Permutation<T, N>,
-    T: AddAssign + Default + Copy,
+    T: AddAssign + Copy,
 {
     /// This initializes the inner state of the sponge permutation, modifying up
     /// to c/2 field elements of the state.
     /// It’s done once in the lifetime of a sponge.
-    pub fn start(iopattern: Vec<IOCall>, domain_sep: DomainSeparator) -> Self {
+    pub fn start(
+        mut permutation: P,
+        iopattern: Vec<IOCall>,
+        domain_sep: DomainSeparator,
+    ) -> Self {
+        // Aggregate the io-pattern before creating the tag
         let mut iopattern = iopattern;
         crate::aggregate_io_pattern(&mut iopattern);
+        // Compute the tag and initialize the state
         let tag = P::tag(&crate::tag_input(&iopattern, &domain_sep));
-        let state = P::initialize_state(tag);
+        permutation.initialize_state(tag);
 
         Self {
-            permutation: P::new(state),
+            permutation,
             pos_absorb: 0,
             pos_sqeeze: 0,
             pos_io: 0,
@@ -91,10 +99,10 @@ where
         self.permutation
             .state_mut()
             .iter_mut()
-            .for_each(|s| *s = T::default());
+            .for_each(|s| *s = P::zero_value());
         self.pos_absorb = 0;
         self.pos_sqeeze = 0;
-        self.tag = T::default();
+        self.tag = P::zero_value();
         self.domain_sep = DomainSeparator::from(0);
 
         match self.pos_io == self.iopattern.len() {

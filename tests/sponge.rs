@@ -15,10 +15,6 @@ const N: usize = 7;
 struct State([u8; N]);
 
 impl Permutation<u8, N> for State {
-    fn new(state: [u8; N]) -> Self {
-        Self(state)
-    }
-
     fn state_mut(&mut self) -> &mut [u8; N] {
         &mut self.0
     }
@@ -37,6 +33,16 @@ impl Permutation<u8, N> for State {
         Hash::hash_slice(input, &mut hasher);
         (hasher.finish() % 255) as u8
     }
+
+    fn zero_value() -> u8 {
+        0
+    }
+}
+
+impl State {
+    pub fn new(state: [u8; N]) -> Self {
+        Self(state)
+    }
 }
 
 #[test]
@@ -45,8 +51,9 @@ fn sponge() {
     let mut iopattern = Vec::new();
     iopattern.push(IOCall::Absorb(N as u32 - 1));
     iopattern.push(IOCall::Squeeze(1));
+    let state = State::new([0; N]);
 
-    let mut sponge: Sponge<State, u8, N> = Sponge::start(iopattern, domain_sep);
+    let mut sponge = Sponge::start(state, iopattern, domain_sep);
     sponge
         .absorb(N - 1, &[1, 2, 3, 4, 5, 6])
         .expect("absorbing should not fail");
