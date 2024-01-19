@@ -31,6 +31,10 @@ impl Permutation<BlsScalar, WIDTH> for State {
     fn zero_value() -> BlsScalar {
         BlsScalar::zero()
     }
+
+    fn add(&mut self, right: BlsScalar, left: BlsScalar) -> BlsScalar {
+        right + left
+    }
 }
 
 impl State {

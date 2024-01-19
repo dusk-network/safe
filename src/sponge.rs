@@ -5,7 +5,6 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use alloc::vec::Vec;
-use core::ops::AddAssign;
 
 use crate::{DomainSeparator, Error, IOCall};
 
@@ -17,7 +16,7 @@ where
     /// Return the inner state of the permutation.
     fn state_mut(&mut self) -> &mut [T; N];
 
-    /// Permute the state of the permutation.
+    /// Apply one permutation to the state.
     fn permute(&mut self);
 
     /// Create the tag by hashing the tag input.
@@ -25,6 +24,11 @@ where
 
     /// Return the zero value of type `T`.
     fn zero_value() -> T;
+
+    /// Add two values of type `T` and return the result.
+    /// This is a trade-off for being able to apply the `Permutation` trait to
+    /// a state gadget, where `T` is of type `Witness`.
+    fn add(&mut self, right: T, left: T) -> T;
 
     /// Initialize the state of the permutation.
     fn initialize_state(&mut self, tag: T) {
@@ -49,7 +53,7 @@ where
     permutation: P,
     pos_absorb: usize,
     pos_sqeeze: usize,
-    pos_io: usize,
+    io_count: usize,
     iopattern: Vec<IOCall>,
     domain_sep: DomainSeparator,
     tag: T,
@@ -59,7 +63,7 @@ where
 impl<P, T, const N: usize> Sponge<P, T, N>
 where
     P: Permutation<T, N>,
-    T: AddAssign + Copy,
+    T: Copy,
 {
     /// This initializes the inner state of the sponge permutation, modifying up
     /// to c/2 field elements of the state.
@@ -80,7 +84,7 @@ where
             permutation,
             pos_absorb: 0,
             pos_sqeeze: 0,
-            pos_io: 0,
+            io_count: 0,
             iopattern,
             domain_sep,
             tag,
@@ -105,7 +109,7 @@ where
         self.tag = P::zero_value();
         self.domain_sep = DomainSeparator::from(0);
 
-        match self.pos_io == self.iopattern.len() {
+        match self.io_count == self.iopattern.len() {
             true => Ok(self.output),
             false => Err(Error::IOPatternViolation),
         }
@@ -116,17 +120,17 @@ where
     /// It also checks if the current call matches the IO pattern.
     pub fn absorb(&mut self, len: usize, input: &[T]) -> Result<(), Error> {
         // Check that the io-pattern is not violated
-        if self.pos_io >= self.iopattern.len() {
+        if self.io_count >= self.iopattern.len() {
             return Err(Error::IOPatternViolation);
         }
-        match self.iopattern[self.pos_io] {
+        match self.iopattern[self.io_count] {
             IOCall::Squeeze(_) => {
                 return Err(Error::IOPatternViolation);
             }
             IOCall::Absorb(expected_len) => {
                 // NOTE: check what to do when the given absorb len is 0
                 if len == 0 {
-                    self.pos_io += 1;
+                    self.io_count += 1;
                     return Ok(());
                 }
                 // Return error if we try to absorb more elements than expected
@@ -139,9 +143,11 @@ where
                 // we absorb less elements than expected.
                 else if len < expected_len as usize {
                     let remaining_len = expected_len - len as u32;
-                    self.iopattern[self.pos_io] = IOCall::Absorb(len as u32);
-                    self.iopattern
-                        .insert(self.pos_io + 1, IOCall::Absorb(remaining_len));
+                    self.iopattern[self.io_count] = IOCall::Absorb(len as u32);
+                    self.iopattern.insert(
+                        self.io_count + 1,
+                        IOCall::Absorb(remaining_len),
+                    );
                 }
             }
         }
@@ -158,8 +164,10 @@ where
             // is used, but as I understand sponges, we need to add
             // the capacity to that position (provided we start
             // counting at 0).
-            self.permutation.state_mut()[self.pos_absorb + Self::capacity()] +=
-                *element;
+            let pos = self.pos_absorb + Self::capacity();
+            let previous_value = self.permutation.state_mut()[pos];
+            let sum = self.permutation.add(previous_value, *element);
+            self.permutation.state_mut()[pos] = sum;
             self.pos_absorb += 1;
         }
 
@@ -168,7 +176,7 @@ where
         self.pos_sqeeze = Self::rate();
 
         // Increase the position for the io pattern
-        self.pos_io += 1;
+        self.io_count += 1;
 
         Ok(())
     }
@@ -178,17 +186,17 @@ where
     /// It also checks if the current call matches the IO pattern.
     pub fn squeeze(&mut self, len: usize) -> Result<(), Error> {
         // Check that the io-pattern is not violated
-        if self.pos_io >= self.iopattern.len() {
+        if self.io_count >= self.iopattern.len() {
             return Err(Error::IOPatternViolation);
         }
-        match self.iopattern[self.pos_io] {
+        match self.iopattern[self.io_count] {
             IOCall::Absorb(_) => {
                 return Err(Error::IOPatternViolation);
             }
             IOCall::Squeeze(expected_len) => {
                 // NOTE: check what to do when the given squeeze len is 0
                 if len == 0 {
-                    self.pos_io += 1;
+                    self.io_count += 1;
                     return Ok(());
                 }
                 // Return error if we try to squeeze more elements than expected
@@ -200,9 +208,9 @@ where
                 // if we absorb less elements than expected.
                 else if len < expected_len as usize {
                     let remaining_len = expected_len - len as u32;
-                    self.iopattern[self.pos_io] = IOCall::Squeeze(len as u32);
+                    self.iopattern[self.io_count] = IOCall::Squeeze(len as u32);
                     self.iopattern.insert(
-                        self.pos_io + 1,
+                        self.io_count + 1,
                         IOCall::Squeeze(remaining_len),
                     );
                 }
@@ -229,7 +237,7 @@ where
         }
 
         // Increase the position for the io pattern
-        self.pos_io += 1;
+        self.io_count += 1;
 
         Ok(())
     }

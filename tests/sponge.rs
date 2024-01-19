@@ -37,6 +37,10 @@ impl Permutation<u8, N> for State {
     fn zero_value() -> u8 {
         0
     }
+
+    fn add(&mut self, right: u8, left: u8) -> u8 {
+        right + left
+    }
 }
 
 impl State {
