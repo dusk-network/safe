@@ -23,7 +23,7 @@ impl Permutation<BlsScalar, WIDTH> for State {
         hades.perm(self.state_mut());
     }
 
-    fn tag(input: &[u8]) -> BlsScalar {
+    fn tag(&mut self, input: &[u8]) -> BlsScalar {
         let _ = input;
         BlsScalar::zero()
     }

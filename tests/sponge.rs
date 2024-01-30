@@ -28,7 +28,7 @@ impl Permutation<u8, N> for State {
         self.0[N - 1] = tmp;
     }
 
-    fn tag(input: &[u8]) -> u8 {
+    fn tag(&mut self, input: &[u8]) -> u8 {
         let mut hasher = DefaultHasher::new();
         Hash::hash_slice(input, &mut hasher);
         (hasher.finish() % 255) as u8

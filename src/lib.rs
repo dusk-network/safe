@@ -22,15 +22,15 @@ pub use sponge::{Permutation, Sponge};
 /// This way a [`DomainSeparator`] can be used to create different [`Sponge`]
 /// instances for a same IO pattern.
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
-pub struct DomainSeparator(u32);
+pub struct DomainSeparator(u64);
 
-impl From<u32> for DomainSeparator {
-    fn from(value: u32) -> Self {
+impl From<u64> for DomainSeparator {
+    fn from(value: u64) -> Self {
         Self(value)
     }
 }
 
-impl From<&DomainSeparator> for u32 {
+impl From<&DomainSeparator> for u64 {
     fn from(value: &DomainSeparator) -> Self {
         value.0
     }
@@ -104,27 +104,29 @@ pub fn tag_input(
             IOCall::Squeeze(len) => input_u32.push(*len),
         }
     }
-    // Add the domain separator to the hash input
-    input_u32.push(domain_sep.into());
-
     // Convert hash input to an array of u8, using big endian conversion
-    input_u32
+    let mut input: Vec<u8> = input_u32
         .iter()
         .flat_map(|u32_int| u32_int.to_be_bytes().into_iter())
-        .collect()
+        .collect();
+
+    // Add the domain separator to the hash input
+    input.extend(domain_sep.0.to_be_bytes());
+
+    input
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn verify_tag_input(iopattern: &Vec<IOCall>, tag: u32) {
+    fn verify_tag_input(iopattern: &Vec<IOCall>, domain: u64) {
         // Check tag input encoding is correct
-        let tag_input = tag_input(iopattern, &DomainSeparator::from(tag));
+        let tag_input = tag_input(iopattern, &DomainSeparator::from(domain));
 
         let input_chunks = &mut tag_input.chunks(4);
-        // Check length
-        assert_eq!(input_chunks.len(), iopattern.len() + 1);
+        // Check length, the last two chunks encode the domain
+        assert_eq!(input_chunks.len(), iopattern.len() + 2);
 
         // Check io pattern encoding
         iopattern.iter().for_each(|io| {
@@ -140,8 +142,12 @@ mod tests {
         });
 
         // Check domain separator encoding
-        let domain_encoded = input_chunks.next().unwrap();
-        assert_eq!(domain_encoded, tag.to_be_bytes());
+        let mut domain_encoded = [0u8; 8];
+        domain_encoded[0..4].copy_from_slice(input_chunks.next().unwrap());
+        domain_encoded[4..8].copy_from_slice(input_chunks.next().unwrap());
+        assert_eq!(domain_encoded, domain.to_be_bytes());
+
+        assert!(input_chunks.next().is_none());
     }
 
     #[test]

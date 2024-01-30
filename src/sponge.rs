@@ -20,7 +20,7 @@ where
     fn permute(&mut self);
 
     /// Create the tag by hashing the tag input.
-    fn tag(input: &[u8]) -> T;
+    fn tag(&mut self, input: &[u8]) -> T;
 
     /// Return the zero value of type `T`.
     fn zero_value() -> T;
@@ -77,7 +77,7 @@ where
         let mut iopattern = iopattern;
         crate::aggregate_io_pattern(&mut iopattern);
         // Compute the tag and initialize the state
-        let tag = P::tag(&crate::tag_input(&iopattern, &domain_sep));
+        let tag = permutation.tag(&crate::tag_input(&iopattern, &domain_sep));
         permutation.initialize_state(tag);
 
         Self {
