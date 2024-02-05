@@ -54,18 +54,15 @@ pub enum IOCall {
 /// Aggregate contiguous calls to absorb or squeeze into a single call,
 /// e.g.:
 /// `[Absorb(3), Absorb(3), Squeeze(1)] -> [Absorb(6), Squeeze(1)]`
-fn aggregate_io_pattern(iopattern: &mut Vec<IOCall>) {
-    // NOTE: Should the io pattern be checked more thoroughly here, e.g.:
-    //   - start with absorb
-    //   - end with squeeze
-    //   - have no len == 0
-    //   and if there is an error, should the io-pattern be erased?
+fn aggregate_io_pattern(iopattern: &mut Vec<IOCall>) -> Result<(), Error> {
     let mut i = 0;
     loop {
         // Since we possibly remove items from the vector within this loop, we
         // need to check for the current length at each iteration.
-        if iopattern.len() <= 1 || iopattern.len() - 2 < i {
-            return;
+        if iopattern.len() <= 1 {
+            return Err(Error::InvalidIOPattern);
+        } else if iopattern.len() - 2 < i {
+            return validate_io_pattern(iopattern);
         }
         // Compare iopattern[i] and iopattern[i + 1].
         match (iopattern[i], iopattern[i + 1]) {
@@ -84,6 +81,39 @@ fn aggregate_io_pattern(iopattern: &mut Vec<IOCall>) {
             _ => i += 1,
         }
     }
+}
+
+/// Check that the io-pattern is sensible:
+/// - It doesn't start with a call to squeeze.
+/// - It doesn't end with a call to absorb.
+/// - Every call to absorb or squeeze has a positive length.
+fn validate_io_pattern(iopattern: &Vec<IOCall>) -> Result<(), Error> {
+    // make sure we have at least two items in our io-pattern, with this we can
+    // safely unwrap in the next two checks
+    if iopattern.len() < 2 {
+        return Err(Error::InvalidIOPattern);
+    }
+    // check that the io-pattern doesn't start with a call to squeeze
+    if let IOCall::Squeeze(_) = iopattern.first().unwrap() {
+        return Err(Error::InvalidIOPattern);
+    }
+    // check that the io-pattern doesn't end with a call to absorb
+    if let IOCall::Absorb(_) = iopattern.last().unwrap() {
+        return Err(Error::InvalidIOPattern);
+    }
+
+    // check that every call to absorb or squeeze has a positive length
+    for op in iopattern {
+        let len = match op {
+            IOCall::Absorb(len) => len,
+            IOCall::Squeeze(len) => len,
+        };
+        if *len == 0 {
+            return Err(Error::InvalidIOPattern);
+        }
+    }
+
+    Ok(())
 }
 
 /// Encode the input for the tag for the sponge instance, using the
@@ -154,27 +184,21 @@ mod tests {
     fn aggregation_and_tag_input() {
         let mut iopattern = Vec::new();
         let mut aggregated = Vec::new();
-        // Check aggregation
-        aggregate_io_pattern(&mut iopattern);
-        assert_eq!(iopattern, aggregated);
-        // Check tag input
-        verify_tag_input(&iopattern, 0);
+        // Check aggregation fails
+        aggregate_io_pattern(&mut iopattern)
+            .expect_err("IO-pattern should not validate");
 
         iopattern.push(IOCall::Absorb(2));
         aggregated.push(IOCall::Absorb(2));
-        // Check aggregation
-        aggregate_io_pattern(&mut iopattern);
-        assert_eq!(iopattern, aggregated);
-        // Check tag input
-        verify_tag_input(&iopattern, 42);
+        // Check aggregation fails
+        aggregate_io_pattern(&mut iopattern)
+            .expect_err("IO-pattern should not validate");
 
         iopattern.push(IOCall::Absorb(3));
         aggregated[0] = IOCall::Absorb(5);
-        // Check aggregation
-        aggregate_io_pattern(&mut iopattern);
-        assert_eq!(iopattern, aggregated);
-        // Check tag input
-        verify_tag_input(&iopattern, 1);
+        // Check aggregation fails
+        aggregate_io_pattern(&mut iopattern)
+            .expect_err("IO-pattern should not validate");
 
         iopattern.push(IOCall::Absorb(2));
         iopattern.push(IOCall::Absorb(2));
@@ -183,7 +207,8 @@ mod tests {
         aggregated[0] = IOCall::Absorb(11);
         aggregated.push(IOCall::Squeeze(1));
         // Check aggregation
-        aggregate_io_pattern(&mut iopattern);
+        aggregate_io_pattern(&mut iopattern)
+            .expect("IO-pattern should validate");
         assert_eq!(iopattern, aggregated);
         // Check tag input
         verify_tag_input(&iopattern, 50);
@@ -191,7 +216,8 @@ mod tests {
         iopattern.push(IOCall::Squeeze(1));
         aggregated[1] = IOCall::Squeeze(1 + 1);
         // Check aggregation
-        aggregate_io_pattern(&mut iopattern);
+        aggregate_io_pattern(&mut iopattern)
+            .expect("IO-pattern should validate");
         assert_eq!(iopattern, aggregated);
         // Check tag input
         verify_tag_input(&iopattern, 42);
@@ -202,7 +228,8 @@ mod tests {
         aggregated.push(IOCall::Absorb(4));
         aggregated.push(IOCall::Squeeze(1));
         // Check aggregation
-        aggregate_io_pattern(&mut iopattern);
+        aggregate_io_pattern(&mut iopattern)
+            .expect("IO-pattern should validate");
         assert_eq!(iopattern, aggregated);
         // Check tag input
         verify_tag_input(&iopattern, 243452880);

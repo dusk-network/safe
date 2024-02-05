@@ -72,15 +72,15 @@ where
         mut permutation: P,
         iopattern: Vec<IOCall>,
         domain_sep: DomainSeparator,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         // Aggregate the io-pattern before creating the tag
         let mut iopattern = iopattern;
-        crate::aggregate_io_pattern(&mut iopattern);
+        crate::aggregate_io_pattern(&mut iopattern)?;
         // Compute the tag and initialize the state
         let tag = permutation.tag(&crate::tag_input(&iopattern, &domain_sep));
         permutation.initialize_state(tag);
 
-        Self {
+        Ok(Self {
             permutation,
             pos_absorb: 0,
             pos_sqeeze: 0,
@@ -89,7 +89,7 @@ where
             domain_sep,
             tag,
             output: Vec::new(),
-        }
+        })
     }
 
     /// This marks the end of the sponge life, preventing any further operation.

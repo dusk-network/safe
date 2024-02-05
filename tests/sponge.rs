@@ -57,7 +57,8 @@ fn sponge() {
     iopattern.push(IOCall::Squeeze(1));
     let state = State::new([0; N]);
 
-    let mut sponge = Sponge::start(state, iopattern, domain_sep);
+    let mut sponge = Sponge::start(state, iopattern, domain_sep)
+        .expect("io-pattern should be valid");
     sponge
         .absorb(N - 1, &[1, 2, 3, 4, 5, 6])
         .expect("absorbing should not fail");

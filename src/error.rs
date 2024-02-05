@@ -11,6 +11,9 @@ pub enum Error {
     /// [`squeeze`].
     IOPatternViolation,
 
+    /// Invalid io-pattern
+    InvalidIOPattern,
+
     /// A violation of the [`IOPattern`] during a call to [`absorb`] or
     /// [`squeeze`].
     InvalidAbsorb,
