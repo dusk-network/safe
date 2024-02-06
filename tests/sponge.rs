@@ -4,7 +4,7 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use safe::{DomainSeparator, IOCall, Permutation, Sponge};
+use safe::{DomainSeparator, Error, IOCall, Permutation, Sponge};
 
 const N: usize = 7;
 
@@ -61,9 +61,9 @@ fn sponge() {
     iopattern.push(IOCall::Absorb(4));
     iopattern.push(IOCall::Squeeze(3));
     iopattern.push(IOCall::Squeeze(4));
-    let state = State::new([0; N]);
 
     // start the sponge
+    let state = State::new([0; N]);
     let mut sponge = Sponge::start(state, iopattern, domain_sep)
         .expect("io-pattern should be valid");
 
@@ -108,7 +108,7 @@ fn sponge() {
     // memory after squeezing 3 elements:
     // state: [15, 20, 11, 12, 6, 1, 8]
     // output: [2, 20, 11, 12, 6, 1, 8]
-    // memore after permuting the state and squeezing one more element:
+    // memory after permuting the state and squeezing one more element:
     // state: [20, 11, 12, 6, 1, 8, 15]
     // output: [2, 20, 11, 12, 6, 1, 8, 11]
 
@@ -117,5 +117,101 @@ fn sponge() {
 }
 
 #[test]
-// #[should_panic]
-fn sponge_fails() {}
+fn absorb_fails() {
+    // pick a domain-separator
+    let domain_sep = DomainSeparator::from(0);
+
+    // build the io-pattern
+    let mut iopattern = Vec::new();
+    iopattern.push(IOCall::Absorb(6));
+    iopattern.push(IOCall::Squeeze(1));
+
+    // start the sponge
+    let input = [1; 10];
+    let state = State::new([0; N]);
+    let mut sponge = Sponge::start(state, iopattern, domain_sep)
+        .expect("io-pattern should be valid");
+
+    // input-slice smaller than len
+    let error = sponge.clone().absorb(6, &input[..4]).unwrap_err();
+    assert_eq!(error, Error::InvalidAbsorbLen(6));
+
+    // absorb len is not as io-pattern specifies
+    let error = sponge.clone().absorb(4, &input[..4]).unwrap_err();
+    assert_eq!(error, Error::InvalidAbsorbLen(4));
+
+    // unexpected call to squeeze
+    let error = sponge.squeeze(1).unwrap_err();
+    assert_eq!(error, Error::IOPatternViolation);
+}
+
+#[test]
+fn squeeze_fails() {
+    // pick a domain-separator
+    let domain_sep = DomainSeparator::from(0);
+
+    // build the io-pattern
+    let mut iopattern = Vec::new();
+    iopattern.push(IOCall::Absorb(6));
+    iopattern.push(IOCall::Squeeze(1));
+
+    // start the sponge
+    let input = [1; 10];
+    let state = State::new([0; N]);
+    let mut sponge = Sponge::start(state, iopattern, domain_sep)
+        .expect("io-pattern should be valid");
+
+    // absorb 6 elements as specified by the io-pattern
+    sponge
+        .absorb(6, &input[..6])
+        .expect("absorbtion should not fail");
+
+    // absorb len is not as io-pattern specifies
+    let error = sponge.clone().squeeze(4).unwrap_err();
+    assert_eq!(error, Error::InvalidSqueezeLen(4));
+
+    // unexpected call to squeeze
+    let error = sponge.absorb(1, &input).unwrap_err();
+    assert_eq!(error, Error::IOPatternViolation);
+}
+
+#[test]
+fn finish_fails() {
+    // pick a domain-separator
+    let domain_sep = DomainSeparator::from(0);
+
+    // build the io-pattern
+    let mut iopattern = Vec::new();
+    iopattern.push(IOCall::Absorb(6));
+    iopattern.push(IOCall::Squeeze(1));
+    iopattern.push(IOCall::Absorb(1));
+    iopattern.push(IOCall::Squeeze(1));
+
+    // start the sponge
+    let input = [1; 10];
+    let state = State::new([0; N]);
+    let mut sponge = Sponge::start(state, iopattern, domain_sep)
+        .expect("io-pattern should be valid");
+
+    // absorb 6 elements as specified by the io-pattern
+    sponge
+        .absorb(6, &input[..6])
+        .expect("absorbtion should not fail");
+    // squeeze 1 element as specified by the io-pattern
+    sponge.squeeze(1).expect("squeeze should not fail");
+
+    // try to finalize before the io-pattern is exhausted
+    let error = sponge.clone().finish().unwrap_err();
+    assert_eq!(error, Error::IOPatternViolation);
+
+    // absorb 1 elements as specified by the io-pattern
+    sponge
+        .absorb(1, &input)
+        .expect("absorbtion should not fail");
+    // squeeze 1 element as specified by the io-pattern
+    sponge.squeeze(1).expect("squeeze should not fail");
+
+    // absorbtion after io-pattern is exhausted should fail
+    let error = sponge.absorb(1, &input).unwrap_err();
+    assert_eq!(error, Error::IOPatternViolation);
+}
