@@ -51,18 +51,59 @@ impl State {
 
 #[test]
 fn sponge() {
-    let domain_sep = DomainSeparator::from(42);
+    // pick a domain-separator
+    let domain_sep = DomainSeparator::from(0);
+
+    // build the io-pattern
     let mut iopattern = Vec::new();
-    iopattern.push(IOCall::Absorb(N as u32 - 1));
+    iopattern.push(IOCall::Absorb(6));
     iopattern.push(IOCall::Squeeze(1));
+    iopattern.push(IOCall::Absorb(8));
+    iopattern.push(IOCall::Squeeze(3));
     let state = State::new([0; N]);
 
+    // start the sponge
     let mut sponge = Sponge::start(state, iopattern, domain_sep)
         .expect("io-pattern should be valid");
+
+    // absorb the first 6 elements of [1, 2, 3, 8, 5, 6, 7, 8, 9, 10]
     sponge
-        .absorb(N - 1, &[1, 2, 3, 4, 5, 6])
+        .absorb(6, &[1, 2, 3, 8, 5, 6, 7, 8, 9, 10])
         .expect("absorbing should not fail");
+    // memory after call to absorb:
+    // state: [t, 1, 2, 3, 8, 5, 6]
+    // output: []
+
+    // call to squeeze triggers one permutation:
     sponge.squeeze(1).expect("squeezing should not fail");
+    // memory after call to squeeze:
+    // state: [1, 2, 3, 8, 5, 6, t]
+    // output: [2]
+
+    // call to absorb the 8 elements of [6, 6, 6, 6, 6, 6, 6, 6] triggers one
+    // permutation and adds the input to the state:
+    sponge
+        .absorb(8, &[6, 6, 6, 6, 6, 6, 6, 6])
+        .expect("absorbtion should not fail");
+    // state during this call to absorb:
+    // absorbing the first 6 elements: [1, 8. 9, 14, 11, 12, t + 6]
+    // calling permutation:            [8. 9, 14, 11, 12, t + 6, 1]
+    // absorbing the last 2 elements:  [8. 15, 20, 11, 12, t + 6, 1]
+    // output: [2]
+
+    // call to squeeze 3 elements triggers another permutation and adds 3
+    // more elements to the output:
+    sponge.squeeze(3).expect("squeezing should not fail");
+    // memory after call to squeeze:
+    // state: [15, 20, 11, 12, t + 6, 1, 8]
+    // output: [2, 20, 11, 12]
+
     let output = sponge.finish().expect("Finishing should not fail");
-    assert_eq!(output[0], 2);
+    assert_eq!(output, vec![2, 20, 11, 12]);
 }
+
+// #[test]
+// #[should_panic]
+// fn sponge_fails {
+
+// }

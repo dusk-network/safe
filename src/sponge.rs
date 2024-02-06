@@ -69,7 +69,7 @@ where
     /// to c/2 field elements of the state.
     /// It’s done once in the lifetime of a sponge.
     pub fn start(
-        mut permutation: P,
+        permutation: P,
         iopattern: Vec<IOCall>,
         domain_sep: DomainSeparator,
     ) -> Result<Self, Error> {
@@ -77,6 +77,7 @@ where
         let mut iopattern = iopattern;
         crate::aggregate_io_pattern(&mut iopattern)?;
         // Compute the tag and initialize the state
+        let mut permutation = permutation;
         let tag = permutation.tag(&crate::tag_input(&iopattern, &domain_sep));
         permutation.initialize_state(tag);
 
@@ -95,11 +96,9 @@ where
     /// This marks the end of the sponge life, preventing any further operation.
     /// In particular, the state is erased from memory. The result is ‘OK’, or
     /// an error
-    // NOTE: in the specs a length is given as a parameter but I don't
-    // understand what for
     pub fn finish(mut self) -> Result<Vec<T>, Error> {
-        // Erase state and its variables except for the io-pattern and its
-        // corresponding position.
+        // Erase state and its variables except for the io-pattern and the
+        // io-count.
         self.permutation
             .state_mut()
             .iter_mut()
@@ -128,15 +127,10 @@ where
                 return Err(Error::IOPatternViolation);
             }
             IOCall::Absorb(expected_len) => {
-                // NOTE: check what to do when the given absorb len is 0
-                if len == 0 {
-                    self.io_count += 1;
-                    return Ok(());
-                }
                 // Return error if we try to absorb more elements than expected
                 // by the io-pattern, or if the given input doesn't yield enough
                 // elements.
-                else if len > expected_len as usize || len > input.len() {
+                if len > expected_len as usize || len > input.len() {
                     return Err(Error::InvalidAbsorbLen(len));
                 }
                 // Insert another call to absorb into the internal io-pattern if
@@ -160,10 +154,7 @@ where
 
                 self.pos_absorb = 0;
             }
-            // NOTE: In the paper it says that the field element at `pos_absorb`
-            // is used, but as I understand sponges, we need to add
-            // the capacity to that position (provided we start
-            // counting at 0).
+            // add the input to the state using `Permutation::add`
             let pos = self.pos_absorb + Self::capacity();
             let previous_value = self.permutation.state_mut()[pos];
             let sum = self.permutation.add(previous_value, *element);
@@ -194,14 +185,9 @@ where
                 return Err(Error::IOPatternViolation);
             }
             IOCall::Squeeze(expected_len) => {
-                // NOTE: check what to do when the given squeeze len is 0
-                if len == 0 {
-                    self.io_count += 1;
-                    return Ok(());
-                }
                 // Return error if we try to squeeze more elements than expected
                 // by the io-pattern.
-                else if len > expected_len as usize {
+                if len > expected_len as usize {
                     return Err(Error::InvalidSqueezeLen(len));
                 }
                 // Insert another call to squeeze into the internal io-pattern
@@ -226,14 +212,11 @@ where
                 self.pos_sqeeze = 0;
                 self.pos_absorb = 0;
             }
-            // NOTE: In the paper it says that the field element at
-            // `pos_squeeze` is returned, but as I understand
-            // sponges, we need to add the capacity to that position
-            // (provided we start counting at 0).
             self.output.push(
                 self.permutation.state_mut()
                     [self.pos_sqeeze + Self::capacity()],
             );
+            self.pos_sqeeze += 1;
         }
 
         // Increase the position for the io pattern

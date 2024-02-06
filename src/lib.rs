@@ -51,6 +51,36 @@ pub enum IOCall {
     Squeeze(u32),
 }
 
+/// Encode the input for the tag for the sponge instance, using the
+/// domain-separator and IO-pattern.
+///
+/// Note: The IO-pattern is expected to be aggregated *before* creating the tag
+/// input.
+pub fn tag_input(
+    iopattern: &[IOCall],
+    domain_sep: &DomainSeparator,
+) -> Vec<u8> {
+    let mut input_u32 = Vec::new();
+
+    // Encode calls to absorb and squeeze
+    for io_call in iopattern.iter() {
+        match io_call {
+            IOCall::Absorb(len) => input_u32.push(0x8000_0000 + *len),
+            IOCall::Squeeze(len) => input_u32.push(*len),
+        }
+    }
+    // Convert hash input to an array of u8, using big endian conversion
+    let mut input: Vec<u8> = input_u32
+        .iter()
+        .flat_map(|u32_int| u32_int.to_be_bytes().into_iter())
+        .collect();
+
+    // Add the domain separator to the hash input
+    input.extend(domain_sep.0.to_be_bytes());
+
+    input
+}
+
 /// Aggregate contiguous calls to absorb or squeeze into a single call,
 /// e.g.:
 /// `[Absorb(3), Absorb(3), Squeeze(1)] -> [Absorb(6), Squeeze(1)]`
@@ -88,8 +118,8 @@ fn aggregate_io_pattern(iopattern: &mut Vec<IOCall>) -> Result<(), Error> {
 /// - It doesn't end with a call to absorb.
 /// - Every call to absorb or squeeze has a positive length.
 fn validate_io_pattern(iopattern: &Vec<IOCall>) -> Result<(), Error> {
-    // make sure we have at least two items in our io-pattern, with this we can
-    // safely unwrap in the next two checks
+    // make sure we have at least two items in our io-pattern, after this check
+    // we can safely unwrap in the next two checks
     if iopattern.len() < 2 {
         return Err(Error::InvalidIOPattern);
     }
@@ -114,36 +144,6 @@ fn validate_io_pattern(iopattern: &Vec<IOCall>) -> Result<(), Error> {
     }
 
     Ok(())
-}
-
-/// Encode the input for the tag for the sponge instance, using the
-/// domain-separator and IO-pattern.
-///
-/// Note: The IO-pattern is expected to be aggregated *before* creating the tag
-/// input.
-pub fn tag_input(
-    iopattern: &[IOCall],
-    domain_sep: &DomainSeparator,
-) -> Vec<u8> {
-    let mut input_u32 = Vec::new();
-
-    // Encode calls to absorb and squeeze
-    for io_call in iopattern.iter() {
-        match io_call {
-            IOCall::Absorb(len) => input_u32.push(0x8000_0000 + *len),
-            IOCall::Squeeze(len) => input_u32.push(*len),
-        }
-    }
-    // Convert hash input to an array of u8, using big endian conversion
-    let mut input: Vec<u8> = input_u32
-        .iter()
-        .flat_map(|u32_int| u32_int.to_be_bytes().into_iter())
-        .collect();
-
-    // Add the domain separator to the hash input
-    input.extend(domain_sep.0.to_be_bytes());
-
-    input
 }
 
 #[cfg(test)]
