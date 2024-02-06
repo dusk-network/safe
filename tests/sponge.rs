@@ -6,9 +6,6 @@
 
 use safe::{DomainSeparator, IOCall, Permutation, Sponge};
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-
 const N: usize = 7;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
@@ -28,10 +25,12 @@ impl Permutation<u8, N> for State {
         self.0[N - 1] = tmp;
     }
 
+    // Setting the tag to a constant zero here so that the sponge state output
+    // is predictable, this should *not* be done in production as it makes the
+    // hash prone to collisions.
     fn tag(&mut self, input: &[u8]) -> u8 {
-        let mut hasher = DefaultHasher::new();
-        Hash::hash_slice(input, &mut hasher);
-        (hasher.finish() % 255) as u8
+        let _input = input;
+        0
     }
 
     fn zero_value() -> u8 {
@@ -58,8 +57,10 @@ fn sponge() {
     let mut iopattern = Vec::new();
     iopattern.push(IOCall::Absorb(6));
     iopattern.push(IOCall::Squeeze(1));
-    iopattern.push(IOCall::Absorb(8));
+    iopattern.push(IOCall::Absorb(4));
+    iopattern.push(IOCall::Absorb(4));
     iopattern.push(IOCall::Squeeze(3));
+    iopattern.push(IOCall::Squeeze(4));
     let state = State::new([0; N]);
 
     // start the sponge
@@ -71,39 +72,50 @@ fn sponge() {
         .absorb(6, &[1, 2, 3, 8, 5, 6, 7, 8, 9, 10])
         .expect("absorbing should not fail");
     // memory after call to absorb:
-    // state: [t, 1, 2, 3, 8, 5, 6]
+    // state: [0, 1, 2, 3, 8, 5, 6]
     // output: []
 
     // call to squeeze triggers one permutation:
     sponge.squeeze(1).expect("squeezing should not fail");
     // memory after call to squeeze:
-    // state: [1, 2, 3, 8, 5, 6, t]
+    // state: [1, 2, 3, 8, 5, 6, 0]
     // output: [2]
 
-    // call to absorb the 8 elements of [6, 6, 6, 6, 6, 6, 6, 6] triggers one
-    // permutation and adds the input to the state:
+    // now we twice absorb 4 times the element `6`
+    let input = [6; 4];
     sponge
-        .absorb(8, &[6, 6, 6, 6, 6, 6, 6, 6])
+        .absorb(4, &input)
         .expect("absorbtion should not fail");
-    // state during this call to absorb:
-    // absorbing the first 6 elements: [1, 8. 9, 14, 11, 12, t + 6]
-    // calling permutation:            [8. 9, 14, 11, 12, t + 6, 1]
-    // absorbing the last 2 elements:  [8. 15, 20, 11, 12, t + 6, 1]
+    sponge
+        .absorb(4, &input)
+        .expect("absorbtion should not fail");
+    // state during these calls to absorb:
+    // absorbing the first 6 elements: [1, 8. 9, 14, 11, 12, 6]
+    // calling permutation:            [8. 9, 14, 11, 12, 6, 1]
+    // absorbing the last 2 elements:  [8. 15, 20, 11, 12, 6, 1]
     // output: [2]
 
     // call to squeeze 3 elements triggers another permutation and adds 3
     // more elements to the output:
     sponge.squeeze(3).expect("squeezing should not fail");
     // memory after call to squeeze:
-    // state: [15, 20, 11, 12, t + 6, 1, 8]
+    // state: [15, 20, 11, 12, 6, 1, 8]
     // output: [2, 20, 11, 12]
 
+    // call to squeeze 4 elements first squeezes 3 more elements from the state,
+    // triggers a permutation and squeezes the last element:
+    sponge.squeeze(4).expect("squeezing should not fail");
+    // memory after squeezing 3 elements:
+    // state: [15, 20, 11, 12, 6, 1, 8]
+    // output: [2, 20, 11, 12, 6, 1, 8]
+    // memore after permuting the state and squeezing one more element:
+    // state: [20, 11, 12, 6, 1, 8, 15]
+    // output: [2, 20, 11, 12, 6, 1, 8, 11]
+
     let output = sponge.finish().expect("Finishing should not fail");
-    assert_eq!(output, vec![2, 20, 11, 12]);
+    assert_eq!(output, vec![2, 20, 11, 12, 6, 1, 8, 11]);
 }
 
-// #[test]
+#[test]
 // #[should_panic]
-// fn sponge_fails {
-
-// }
+fn sponge_fails() {}

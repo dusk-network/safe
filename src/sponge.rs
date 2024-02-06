@@ -6,7 +6,7 @@
 
 use alloc::vec::Vec;
 
-use crate::{DomainSeparator, Error, IOCall};
+use crate::{tag_input, DomainSeparator, Error, IOCall};
 
 /// Trait to define the behavior of the sponge permutation.
 pub trait Permutation<T, const N: usize>
@@ -73,12 +73,10 @@ where
         iopattern: Vec<IOCall>,
         domain_sep: DomainSeparator,
     ) -> Result<Self, Error> {
-        // Aggregate the io-pattern before creating the tag
-        let mut iopattern = iopattern;
-        crate::aggregate_io_pattern(&mut iopattern)?;
-        // Compute the tag and initialize the state
+        // Compute the tag and initialize the state.
+        // Note: This will return an error if the io-pattern is invalid.
         let mut permutation = permutation;
-        let tag = permutation.tag(&crate::tag_input(&iopattern, &domain_sep));
+        let tag = permutation.tag(&tag_input(&iopattern, &domain_sep)?);
         permutation.initialize_state(tag);
 
         Ok(Self {
@@ -127,21 +125,11 @@ where
                 return Err(Error::IOPatternViolation);
             }
             IOCall::Absorb(expected_len) => {
-                // Return error if we try to absorb more elements than expected
-                // by the io-pattern, or if the given input doesn't yield enough
+                // Return error if the absorb length doesn't match the
+                // io-pattern, or if the given input doesn't yield enough
                 // elements.
-                if len > expected_len as usize || len > input.len() {
+                if len != expected_len as usize || len > input.len() {
                     return Err(Error::InvalidAbsorbLen(len));
-                }
-                // Insert another call to absorb into the internal io-pattern if
-                // we absorb less elements than expected.
-                else if len < expected_len as usize {
-                    let remaining_len = expected_len - len as u32;
-                    self.iopattern[self.io_count] = IOCall::Absorb(len as u32);
-                    self.iopattern.insert(
-                        self.io_count + 1,
-                        IOCall::Absorb(remaining_len),
-                    );
                 }
             }
         }
@@ -185,20 +173,10 @@ where
                 return Err(Error::IOPatternViolation);
             }
             IOCall::Squeeze(expected_len) => {
-                // Return error if we try to squeeze more elements than expected
-                // by the io-pattern.
-                if len > expected_len as usize {
+                // Return error if the squeeze length doesn't match the
+                // io-pattern.
+                if len != expected_len as usize {
                     return Err(Error::InvalidSqueezeLen(len));
-                }
-                // Insert another call to squeeze into the internal io-pattern
-                // if we absorb less elements than expected.
-                else if len < expected_len as usize {
-                    let remaining_len = expected_len - len as u32;
-                    self.iopattern[self.io_count] = IOCall::Squeeze(len as u32);
-                    self.iopattern.insert(
-                        self.io_count + 1,
-                        IOCall::Squeeze(remaining_len),
-                    );
                 }
             }
         };
