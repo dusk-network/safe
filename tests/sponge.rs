@@ -16,7 +16,7 @@ impl Permutation<u8, N> for State {
         &mut self.0
     }
 
-    // rotate every item one item to the left
+    // rotate every item one item to the left, first item becomes last
     fn permute(&mut self) {
         let tmp = self.0[0];
         for i in 1..N {
@@ -27,7 +27,7 @@ impl Permutation<u8, N> for State {
 
     // Setting the tag to a constant zero here so that the sponge state output
     // is predictable, this should *not* be done in production as it makes the
-    // hash prone to collisions.
+    // resulting hash vulnerable to collisions attacks.
     fn tag(&mut self, input: &[u8]) -> u8 {
         let _input = input;
         0
@@ -37,7 +37,7 @@ impl Permutation<u8, N> for State {
         0
     }
 
-    fn add(&mut self, right: u8, left: u8) -> u8 {
+    fn add(&mut self, right: &u8, left: &u8) -> u8 {
         right + left
     }
 }

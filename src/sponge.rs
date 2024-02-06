@@ -9,10 +9,7 @@ use alloc::vec::Vec;
 use crate::{tag_input, DomainSeparator, Error, IOCall};
 
 /// Trait to define the behavior of the sponge permutation.
-pub trait Permutation<T, const N: usize>
-where
-    T: Copy,
-{
+pub trait Permutation<T, const N: usize> {
     /// Return the inner state of the permutation.
     fn state_mut(&mut self) -> &mut [T; N];
 
@@ -28,16 +25,15 @@ where
     /// Add two values of type `T` and return the result.
     /// This is a trade-off for being able to apply the `Permutation` trait to
     /// a state gadget, where `T` is of type `Witness`.
-    fn add(&mut self, right: T, left: T) -> T;
+    fn add(&mut self, right: &T, left: &T) -> T;
 
     /// Initialize the state of the permutation.
     fn initialize_state(&mut self, tag: T) {
-        self.state_mut().iter_mut().enumerate().for_each(|(i, s)| {
-            *s = match i {
-                0 => tag,
-                _ => Self::zero_value(),
-            }
-        });
+        self.state_mut()[0] = tag;
+        self.state_mut()
+            .iter_mut()
+            .skip(1)
+            .for_each(|s| *s = Self::zero_value());
     }
 }
 
@@ -48,7 +44,7 @@ where
 pub struct Sponge<P, T, const N: usize>
 where
     P: Permutation<T, N>,
-    T: Copy,
+    // T: Copy,
 {
     permutation: P,
     pos_absorb: usize,
@@ -56,14 +52,13 @@ where
     io_count: usize,
     iopattern: Vec<IOCall>,
     domain_sep: DomainSeparator,
-    tag: T,
     output: Vec<T>,
 }
 
 impl<P, T, const N: usize> Sponge<P, T, N>
 where
     P: Permutation<T, N>,
-    T: Copy,
+    T: Clone,
 {
     /// This initializes the inner state of the sponge permutation, modifying up
     /// to c/2 field elements of the state.
@@ -86,7 +81,6 @@ where
             io_count: 0,
             iopattern,
             domain_sep,
-            tag,
             output: Vec::new(),
         })
     }
@@ -103,7 +97,6 @@ where
             .for_each(|s| *s = P::zero_value());
         self.pos_absorb = 0;
         self.pos_sqeeze = 0;
-        self.tag = P::zero_value();
         self.domain_sep = DomainSeparator::from(0);
 
         match self.io_count == self.iopattern.len() {
@@ -144,8 +137,8 @@ where
             }
             // add the input to the state using `Permutation::add`
             let pos = self.pos_absorb + Self::capacity();
-            let previous_value = self.permutation.state_mut()[pos];
-            let sum = self.permutation.add(previous_value, *element);
+            let previous_value = self.permutation.state_mut()[pos].clone();
+            let sum = self.permutation.add(&previous_value, element);
             self.permutation.state_mut()[pos] = sum;
             self.pos_absorb += 1;
         }
@@ -192,7 +185,8 @@ where
             }
             self.output.push(
                 self.permutation.state_mut()
-                    [self.pos_sqeeze + Self::capacity()],
+                    [self.pos_sqeeze + Self::capacity()]
+                .clone(),
             );
             self.pos_sqeeze += 1;
         }
