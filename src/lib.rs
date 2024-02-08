@@ -120,7 +120,7 @@ mod tests {
         let mut iopattern = Vec::new();
         let mut aggregated = Vec::new();
         let domain_sep = 42;
-        validate_io_pattern(&mut iopattern)
+        validate_io_pattern(&iopattern)
             .expect_err("IO-pattern should not validate");
 
         iopattern.push(IOCall::Absorb(2));

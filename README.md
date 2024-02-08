@@ -17,7 +17,7 @@ As its main features, this sponge API:
 - Is among the first constructions to store the protocol’s metadata in the sponge inner part, provably losing no security
 
 This sponge construction in itself does not support variable-length hashing, i.e. hashing where the length of data hashed is unknown in advance.
-However this behavior can be achieved by wrapping the sponge in a hasher, that will only start the sponge when the hash is being finalized, thus at a time when the length of the input is known (example implementation of this wrapper can be found in [`dusk-poseidon`](https://github.com/dusk-network/Poseidon252)).
+However, this behavior can be achieved by wrapping the sponge in a hasher, that will only start the sponge when the hash is being finalized, thus at a time when the length of the input is known (example implementation of this wrapper can be found in [`dusk-poseidon`](https://github.com/dusk-network/Poseidon252)).
 
 ## Construction
 
@@ -40,14 +40,14 @@ Note: With the capacity beeing one element of type `T` we need to restrict `T` t
    - First call is to `absorb`.
    - Last call is to `squeeze`.
    - No call has a `len == 0`.
-1. Compute the tag given an IO pattern and a byte string used as domain separator.
+2. Compute the tag given an IO pattern and a byte string used as domain separator.
    1. Encode the IO pattern as a list of 32-bit words whose MSB is set to 1 for `absorb` and to 0 for `squeeze`, and the length is added to the lower bits. Any contiguous calls to `absorb` and `squeeze` will be aggregated, e.g. the above example of an IO pattern of `[absorb(4), absorb(1), squeeze(3)]` will have the same encoding as `[absorb(5), squeeze(3)]`: `[0x8000_0005, 0x0000_0001]`.
    2. Serialize the list of words into a byte string and append to it the domain separator: e.g. if the domain separator is the two-byte sequence `0x4142`, then the example above would yield the string (with big-endian convention): `0x80000005000000014142`.
    3. Hash the byte string into the tag, an element of type `T`.
-2. Set first element of the permutation state to the tag and set the remaining elements to all zeros.
-3. Set both absorb and squeeze positions to zero.
-4. Set the IO count to zero.
-5. Set the expected IO pattern.
+3. Set first element of the permutation state to the tag and set the remaining elements to all zeros.
+4. Set both absorb and squeeze positions to zero.
+5. Set the IO count to zero.
+6. Set the expected IO pattern.
 
 ### `finish`
 
@@ -69,7 +69,7 @@ Note: With the capacity beeing one element of type `T` we need to restrict `T` t
 1. Check that the call to absorb matches the entry of in the IO pattern at the IO count (erase state and return error if not).
 2. `len` times:
    1. Call the permutation function if `pos_squeeze == rate` and set `pos_sqeeze = 0`
-   2. Append the element of the permutation state at position `pos_sqeeze + 1` (also here we skipt the first element due to the capacity) to the output vector.
+   2. Append the element of the permutation state at position `pos_sqeeze + 1` (also here we skip the first element due to the capacity) to the output vector.
 3. Increment the IO count.
 
 *Note that we do not set the `pos_absorb` to the rate as we do with the `pos_squeeze` in the call to `absorb`, this is because we may want the state to absorb at the same positions that have been squeezed.*
