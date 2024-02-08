@@ -4,46 +4,47 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use dusk_bls12_381::BlsScalar;
 use safe::{DomainSeparator, Error, IOCall, Permutation, Sponge};
 
-const N: usize = 7;
+const W: usize = 7;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
-struct State([u8; N]);
+struct State([BlsScalar; W]);
 
-impl Permutation<u8, N> for State {
-    fn state_mut(&mut self) -> &mut [u8; N] {
+impl Permutation<BlsScalar, W> for State {
+    fn state_mut(&mut self) -> &mut [BlsScalar; W] {
         &mut self.0
     }
 
     // rotate every item one item to the left, first item becomes last
     fn permute(&mut self) {
         let tmp = self.0[0];
-        for i in 1..N {
+        for i in 1..W {
             self.0[i - 1] = self.0[i];
         }
-        self.0[N - 1] = tmp;
+        self.0[W - 1] = tmp;
     }
 
     // Setting the tag to a constant zero here so that the sponge state output
     // is predictable, this should *not* be done in production as it makes the
     // resulting hash vulnerable to collisions attacks.
-    fn tag(&mut self, input: &[u8]) -> u8 {
+    fn tag(&mut self, input: &[u8]) -> BlsScalar {
         let _input = input;
-        0
+        BlsScalar::zero()
     }
 
-    fn zero_value() -> u8 {
-        0
+    fn zero_value() -> BlsScalar {
+        BlsScalar::zero()
     }
 
-    fn add(&mut self, right: &u8, left: &u8) -> u8 {
+    fn add(&mut self, right: &BlsScalar, left: &BlsScalar) -> BlsScalar {
         right + left
     }
 }
 
 impl State {
-    pub fn new(state: [u8; N]) -> Self {
+    pub fn new(state: [BlsScalar; W]) -> Self {
         Self(state)
     }
 }
@@ -63,13 +64,27 @@ fn sponge() {
     iopattern.push(IOCall::Squeeze(4));
 
     // start the sponge
-    let state = State::new([0; N]);
-    let mut sponge = Sponge::start(state, iopattern, domain_sep)
-        .expect("io-pattern should be valid");
+    let mut sponge = Sponge::start(
+        State::new([BlsScalar::zero(); W]),
+        iopattern,
+        domain_sep,
+    )
+    .expect("io-pattern should be valid");
 
-    // absorb the first 6 elements of [1, 2, 3, 8, 5, 6, 7, 8, 9, 10]
+    // absorb the first 6 elements of [1, 2, 3, 8, 5, 6, 7]
     sponge
-        .absorb(6, &[1, 2, 3, 8, 5, 6, 7, 8, 9, 10])
+        .absorb(
+            6,
+            &[
+                BlsScalar::from(1),
+                BlsScalar::from(2),
+                BlsScalar::from(3),
+                BlsScalar::from(8),
+                BlsScalar::from(5),
+                BlsScalar::from(6),
+                BlsScalar::from(7),
+            ],
+        )
         .expect("absorbing should not fail");
     // memory after call to absorb:
     // state: [0, 1, 2, 3, 8, 5, 6]
@@ -82,7 +97,7 @@ fn sponge() {
     // output: [2]
 
     // now we twice absorb 4 times the element `6`
-    let input = [6; 4];
+    let input = [BlsScalar::from(6); 4];
     sponge
         .absorb(4, &input)
         .expect("absorbtion should not fail");
@@ -113,7 +128,19 @@ fn sponge() {
     // output: [2, 20, 11, 12, 6, 1, 8, 11]
 
     let output = sponge.finish().expect("Finishing should not fail");
-    assert_eq!(output, vec![2, 20, 11, 12, 6, 1, 8, 11]);
+    assert_eq!(
+        output,
+        vec![
+            BlsScalar::from(2),
+            BlsScalar::from(20),
+            BlsScalar::from(11),
+            BlsScalar::from(12),
+            BlsScalar::from(6),
+            BlsScalar::from(1),
+            BlsScalar::from(8),
+            BlsScalar::from(11),
+        ]
+    );
 }
 
 #[test]
@@ -127,8 +154,8 @@ fn absorb_fails() {
     iopattern.push(IOCall::Squeeze(1));
 
     // start the sponge
-    let input = [1; 10];
-    let state = State::new([0; N]);
+    let input = [BlsScalar::one(); 10];
+    let state = State::new([BlsScalar::zero(); W]);
     let mut sponge = Sponge::start(state, iopattern, domain_sep)
         .expect("io-pattern should be valid");
 
@@ -156,8 +183,8 @@ fn squeeze_fails() {
     iopattern.push(IOCall::Squeeze(1));
 
     // start the sponge
-    let input = [1; 10];
-    let state = State::new([0; N]);
+    let input = [BlsScalar::one(); 10];
+    let state = State::new([BlsScalar::zero(); W]);
     let mut sponge = Sponge::start(state, iopattern, domain_sep)
         .expect("io-pattern should be valid");
 
@@ -188,8 +215,8 @@ fn finish_fails() {
     iopattern.push(IOCall::Squeeze(1));
 
     // start the sponge
-    let input = [1; 10];
-    let state = State::new([0; N]);
+    let input = [BlsScalar::one(); 10];
+    let state = State::new([BlsScalar::zero(); W]);
     let mut sponge = Sponge::start(state, iopattern, domain_sep)
         .expect("io-pattern should be valid");
 

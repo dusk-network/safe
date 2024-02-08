@@ -142,47 +142,48 @@ mod tests {
         let mut iopattern = Vec::new();
         let mut aggregated = Vec::new();
         let domain_sep = DomainSeparator::from(42);
-        // check io-pattern
         validate_io_pattern(&mut iopattern)
             .expect_err("IO-pattern should not validate");
 
         iopattern.push(IOCall::Absorb(2));
         aggregated.push(IOCall::Absorb(2));
         // check io-pattern
-        validate_io_pattern(&mut aggregated)
+        validate_io_pattern(&iopattern)
             .expect_err("IO-pattern should not validate");
 
-        iopattern.push(IOCall::Absorb(3));
-        aggregated[0] = IOCall::Absorb(5);
+        iopattern.push(IOCall::Squeeze(1));
+        aggregated.push(IOCall::Squeeze(1));
         // check io-pattern
-        validate_io_pattern(&mut iopattern)
+        validate_io_pattern(&iopattern).expect("IO-Pattern should validate");
+        let result = tag_input(&iopattern, &domain_sep)
+            .expect("IO-Pattern should validate");
+        let result_aggregated = tag_input(&aggregated, &domain_sep)
+            .expect("IO-Pattern should validate");
+        assert_eq!(result, result_aggregated);
+
+        iopattern.push(IOCall::Squeeze(0));
+        // check io-pattern
+        validate_io_pattern(&iopattern)
             .expect_err("IO-pattern should not validate");
+        iopattern.pop();
+
+        iopattern.push(IOCall::Absorb(0));
+        iopattern.push(IOCall::Squeeze(1));
+        // check io-pattern
+        validate_io_pattern(&iopattern)
+            .expect_err("IO-pattern should not validate");
+        iopattern.pop();
+        iopattern.pop();
 
         iopattern.push(IOCall::Absorb(2));
         iopattern.push(IOCall::Absorb(2));
         iopattern.push(IOCall::Absorb(2));
         iopattern.push(IOCall::Squeeze(1));
-        aggregated[0] = IOCall::Absorb(11);
-        aggregated.push(IOCall::Squeeze(1));
-        let result = tag_input(&iopattern, &domain_sep)
-            .expect("IO-Pattern should validate");
-        let result_aggregated = tag_input(&aggregated, &domain_sep)
-            .expect("IO-Pattern should validate");
-        assert_eq!(result, result_aggregated);
-
         iopattern.push(IOCall::Squeeze(1));
-        aggregated[1] = IOCall::Squeeze(1 + 1);
-        let result = tag_input(&iopattern, &domain_sep)
-            .expect("IO-Pattern should validate");
-        let result_aggregated = tag_input(&aggregated, &domain_sep)
-            .expect("IO-Pattern should validate");
-        assert_eq!(result, result_aggregated);
-
-        iopattern.push(IOCall::Absorb(2));
-        iopattern.push(IOCall::Absorb(2));
-        iopattern.push(IOCall::Squeeze(1));
-        aggregated.push(IOCall::Absorb(4));
-        aggregated.push(IOCall::Squeeze(1));
+        aggregated.push(IOCall::Absorb(6));
+        aggregated.push(IOCall::Squeeze(2));
+        // check io-pattern
+        validate_io_pattern(&iopattern).expect("IO-Pattern should validate");
         let result = tag_input(&iopattern, &domain_sep)
             .expect("IO-Pattern should validate");
         let result_aggregated = tag_input(&aggregated, &domain_sep)

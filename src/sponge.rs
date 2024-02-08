@@ -101,7 +101,12 @@ where
 
         match self.io_count == self.iopattern.len() {
             true => Ok(self.output),
-            false => Err(Error::IOPatternViolation),
+            false => {
+                for element in self.output.iter_mut() {
+                    *element = P::zero_value();
+                }
+                Err(Error::IOPatternViolation)
+            }
         }
     }
 
@@ -111,10 +116,12 @@ where
     pub fn absorb(&mut self, len: usize, input: &[T]) -> Result<(), Error> {
         // Check that the io-pattern is not violated
         if self.io_count >= self.iopattern.len() {
+            self.erase();
             return Err(Error::IOPatternViolation);
         }
         match self.iopattern[self.io_count] {
             IOCall::Squeeze(_) => {
+                self.erase();
                 return Err(Error::IOPatternViolation);
             }
             IOCall::Absorb(expected_len) => {
@@ -122,6 +129,7 @@ where
                 // io-pattern, or if the given input doesn't yield enough
                 // elements.
                 if len != expected_len as usize || len > input.len() {
+                    self.erase();
                     return Err(Error::InvalidAbsorbLen(len));
                 }
             }
@@ -159,16 +167,19 @@ where
     pub fn squeeze(&mut self, len: usize) -> Result<(), Error> {
         // Check that the io-pattern is not violated
         if self.io_count >= self.iopattern.len() {
+            self.erase();
             return Err(Error::IOPatternViolation);
         }
         match self.iopattern[self.io_count] {
             IOCall::Absorb(_) => {
+                self.erase();
                 return Err(Error::IOPatternViolation);
             }
             IOCall::Squeeze(expected_len) => {
                 // Return error if the squeeze length doesn't match the
                 // io-pattern.
                 if len != expected_len as usize {
+                    self.erase();
                     return Err(Error::InvalidSqueezeLen(len));
                 }
             }
@@ -205,5 +216,19 @@ where
     /// The rate of the sponge instance.
     pub const fn rate() -> usize {
         N - Self::capacity()
+    }
+
+    /// Erases all memory except of the io-count and io-pattern of the sponge
+    /// instance. This is to be called in case of an error in the lifetime of
+    /// the sponge.
+    fn erase(&mut self) {
+        self.permutation
+            .state_mut()
+            .iter_mut()
+            .for_each(|s| *s = P::zero_value());
+        self.pos_absorb = 0;
+        self.pos_sqeeze = 0;
+        self.domain_sep = DomainSeparator::from(0);
+        self.output.iter_mut().for_each(|o| *o = P::zero_value());
     }
 }
