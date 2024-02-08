@@ -13,6 +13,8 @@ const W: usize = 7;
 struct State([BlsScalar; W]);
 
 impl Permutation<BlsScalar, W> for State {
+    const ZERO_VALUE: BlsScalar = BlsScalar::zero();
+
     fn state_mut(&mut self) -> &mut [BlsScalar; W] {
         &mut self.0
     }
@@ -31,10 +33,6 @@ impl Permutation<BlsScalar, W> for State {
     // resulting hash vulnerable to collisions attacks.
     fn tag(&mut self, input: &[u8]) -> BlsScalar {
         let _input = input;
-        BlsScalar::zero()
-    }
-
-    fn zero_value() -> BlsScalar {
         BlsScalar::zero()
     }
 

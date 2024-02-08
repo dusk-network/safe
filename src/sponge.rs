@@ -5,11 +5,15 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use alloc::vec::Vec;
+use core::mem;
 
 use crate::{tag_input, DomainSeparator, Error, IOCall};
 
 /// Trait to define the behavior of the sponge permutation.
 pub trait Permutation<T, const N: usize> {
+    /// Zero value of type `T`.
+    const ZERO_VALUE: T;
+
     /// Return the inner state of the permutation.
     fn state_mut(&mut self) -> &mut [T; N];
 
@@ -19,9 +23,6 @@ pub trait Permutation<T, const N: usize> {
     /// Create the tag by hashing the tag input.
     fn tag(&mut self, input: &[u8]) -> T;
 
-    /// Return the zero value of type `T`.
-    fn zero_value() -> T;
-
     /// Add two values of type `T` and return the result.
     /// This is a trade-off for being able to apply the `Permutation` trait to
     /// a state gadget, where `T` is of type `Witness`.
@@ -29,11 +30,9 @@ pub trait Permutation<T, const N: usize> {
 
     /// Initialize the state of the permutation.
     fn initialize_state(&mut self, tag: T) {
-        self.state_mut()[0] = tag;
-        self.state_mut()
-            .iter_mut()
-            .skip(1)
-            .for_each(|s| *s = Self::zero_value());
+        let mut tagged_zero_state = [Self::ZERO_VALUE; N];
+        tagged_zero_state[0] = tag;
+        mem::swap(self.state_mut(), &mut tagged_zero_state);
     }
 }
 
@@ -91,10 +90,9 @@ where
     pub fn finish(mut self) -> Result<Vec<T>, Error> {
         // Erase state and its variables except for the io-pattern and the
         // io-count.
-        self.permutation
-            .state_mut()
-            .iter_mut()
-            .for_each(|s| *s = P::zero_value());
+        let mut zero_state = [P::ZERO_VALUE; N];
+        mem::swap(self.permutation.state_mut(), &mut zero_state);
+
         self.pos_absorb = 0;
         self.pos_sqeeze = 0;
         self.domain_sep = DomainSeparator::from(0);
@@ -103,7 +101,7 @@ where
             true => Ok(self.output),
             false => {
                 for element in self.output.iter_mut() {
-                    *element = P::zero_value();
+                    *element = P::ZERO_VALUE;
                 }
                 Err(Error::IOPatternViolation)
             }
@@ -222,13 +220,12 @@ where
     /// instance. This is to be called in case of an error in the lifetime of
     /// the sponge.
     fn erase(&mut self) {
-        self.permutation
-            .state_mut()
-            .iter_mut()
-            .for_each(|s| *s = P::zero_value());
+        let mut zero_state = [P::ZERO_VALUE; N];
+        mem::swap(self.permutation.state_mut(), &mut zero_state);
+
         self.pos_absorb = 0;
         self.pos_sqeeze = 0;
         self.domain_sep = DomainSeparator::from(0);
-        self.output.iter_mut().for_each(|o| *o = P::zero_value());
+        self.output.iter_mut().for_each(|o| *o = P::ZERO_VALUE);
     }
 }
