@@ -43,7 +43,6 @@ pub trait Permutation<T, const N: usize> {
 pub struct Sponge<P, T, const N: usize>
 where
     P: Permutation<T, N>,
-    // T: Copy,
 {
     permutation: P,
     pos_absorb: usize,
@@ -59,6 +58,12 @@ where
     P: Permutation<T, N>,
     T: Clone,
 {
+    /// The capacity of the sponge.
+    const CAPACITY: usize = 1;
+
+    /// The rate of the sponge.
+    const RATE: usize = N - Self::CAPACITY;
+
     /// This initializes the inner state of the sponge permutation, modifying up
     /// to c/2 field elements of the state.
     /// It’s done once in the lifetime of a sponge.
@@ -136,13 +141,13 @@ where
         // Absorb `len` elements into the state, calling [`permute`] when the
         // absorb-position reached the rate.
         for element in input.iter().take(len) {
-            if self.pos_absorb == Self::rate() {
+            if self.pos_absorb == Self::RATE {
                 self.permutation.permute();
 
                 self.pos_absorb = 0;
             }
             // add the input to the state using `Permutation::add`
-            let pos = self.pos_absorb + Self::capacity();
+            let pos = self.pos_absorb + Self::CAPACITY;
             let previous_value = self.permutation.state_mut()[pos].clone();
             let sum = self.permutation.add(&previous_value, element);
             self.permutation.state_mut()[pos] = sum;
@@ -151,7 +156,7 @@ where
 
         // Set squeeze position to rate to force a permutation at the next
         // call to squeeze
-        self.pos_sqeeze = Self::rate();
+        self.pos_sqeeze = Self::RATE;
 
         // Increase the position for the io pattern
         self.io_count += 1;
@@ -186,16 +191,15 @@ where
         // Squeeze 'len` field elements from the state, calling [`permute`] when
         // the squeeze-position reached the rate.
         for _ in 0..len {
-            if self.pos_sqeeze == Self::rate() {
+            if self.pos_sqeeze == Self::RATE {
                 self.permutation.permute();
 
                 self.pos_sqeeze = 0;
                 self.pos_absorb = 0;
             }
             self.output.push(
-                self.permutation.state_mut()
-                    [self.pos_sqeeze + Self::capacity()]
-                .clone(),
+                self.permutation.state_mut()[self.pos_sqeeze + Self::CAPACITY]
+                    .clone(),
             );
             self.pos_sqeeze += 1;
         }
@@ -204,16 +208,6 @@ where
         self.io_count += 1;
 
         Ok(())
-    }
-
-    /// The capacity of the sponge instance.
-    pub const fn capacity() -> usize {
-        1
-    }
-
-    /// The rate of the sponge instance.
-    pub const fn rate() -> usize {
-        N - Self::capacity()
     }
 
     /// Erases all memory except of the io-count and io-pattern of the sponge
