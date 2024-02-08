@@ -7,7 +7,7 @@
 use alloc::vec::Vec;
 use core::mem;
 
-use crate::{tag_input, DomainSeparator, Error, IOCall};
+use crate::{tag_input, Error, IOCall};
 
 /// Trait to define the behavior of the sponge permutation.
 pub trait Permutation<T, const N: usize> {
@@ -50,7 +50,7 @@ where
     pos_sqeeze: usize,
     io_count: usize,
     iopattern: Vec<IOCall>,
-    domain_sep: DomainSeparator,
+    domain_sep: u64,
     output: Vec<T>,
 }
 
@@ -65,12 +65,12 @@ where
     pub fn start(
         permutation: P,
         iopattern: Vec<IOCall>,
-        domain_sep: DomainSeparator,
+        domain_sep: u64,
     ) -> Result<Self, Error> {
         // Compute the tag and initialize the state.
         // Note: This will return an error if the io-pattern is invalid.
         let mut permutation = permutation;
-        let tag = permutation.tag(&tag_input(&iopattern, &domain_sep)?);
+        let tag = permutation.tag(&tag_input(&iopattern, domain_sep)?);
         permutation.initialize_state(tag);
 
         Ok(Self {
@@ -95,7 +95,7 @@ where
 
         self.pos_absorb = 0;
         self.pos_sqeeze = 0;
-        self.domain_sep = DomainSeparator::from(0);
+        self.domain_sep = 0;
 
         match self.io_count == self.iopattern.len() {
             true => Ok(self.output),
@@ -225,7 +225,7 @@ where
 
         self.pos_absorb = 0;
         self.pos_sqeeze = 0;
-        self.domain_sep = DomainSeparator::from(0);
+        self.domain_sep = 0;
         self.output.iter_mut().for_each(|o| *o = P::ZERO_VALUE);
     }
 }

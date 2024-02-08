@@ -17,25 +17,6 @@ mod sponge;
 pub use error::Error;
 pub use sponge::{Permutation, Sponge};
 
-/// A DomainSeparator together with the [`IOPattern`] is used to create a tag to
-/// initialize a [`Sponge`] [`State`].
-/// This way a [`DomainSeparator`] can be used to create different [`Sponge`]
-/// instances for a same IO pattern.
-#[derive(Default, Debug, Clone, Copy, PartialEq)]
-pub struct DomainSeparator(u64);
-
-impl From<u64> for DomainSeparator {
-    fn from(value: u64) -> Self {
-        Self(value)
-    }
-}
-
-impl From<&DomainSeparator> for u64 {
-    fn from(value: &DomainSeparator) -> Self {
-        value.0
-    }
-}
-
 /// Enum to encode the [`Sponge::absorb`] and [`Sponge::squeeze`] calls and the
 /// amount of elements absorbed/squeezed during the sponge lifetime. An
 /// implementation must forbid to finish the sponge usage if this pattern is
@@ -55,10 +36,7 @@ pub enum IOCall {
 /// domain-separator and IO-pattern.
 ///
 /// This function returns an error if the io-pattern is not sensible.
-fn tag_input(
-    iopattern: &[IOCall],
-    domain_sep: &DomainSeparator,
-) -> Result<Vec<u8>, Error> {
+fn tag_input(iopattern: &[IOCall], domain_sep: u64) -> Result<Vec<u8>, Error> {
     // make sure the io-pattern is valid: start with absorb, end with squeeze
     // and none of the calls have a len == 0
     validate_io_pattern(iopattern)?;
@@ -95,7 +73,7 @@ fn tag_input(
         .collect();
 
     // Add the domain separator to the hash input
-    input.extend(domain_sep.0.to_be_bytes());
+    input.extend(domain_sep.to_be_bytes());
 
     Ok(input)
 }
@@ -141,7 +119,7 @@ mod tests {
     fn aggregation_and_tag_input() {
         let mut iopattern = Vec::new();
         let mut aggregated = Vec::new();
-        let domain_sep = DomainSeparator::from(42);
+        let domain_sep = 42;
         validate_io_pattern(&mut iopattern)
             .expect_err("IO-pattern should not validate");
 
@@ -155,9 +133,9 @@ mod tests {
         aggregated.push(IOCall::Squeeze(1));
         // check io-pattern
         validate_io_pattern(&iopattern).expect("IO-Pattern should validate");
-        let result = tag_input(&iopattern, &domain_sep)
+        let result = tag_input(&iopattern, domain_sep)
             .expect("IO-Pattern should validate");
-        let result_aggregated = tag_input(&aggregated, &domain_sep)
+        let result_aggregated = tag_input(&aggregated, domain_sep)
             .expect("IO-Pattern should validate");
         assert_eq!(result, result_aggregated);
 
@@ -184,9 +162,9 @@ mod tests {
         aggregated.push(IOCall::Squeeze(2));
         // check io-pattern
         validate_io_pattern(&iopattern).expect("IO-Pattern should validate");
-        let result = tag_input(&iopattern, &domain_sep)
+        let result = tag_input(&iopattern, domain_sep)
             .expect("IO-Pattern should validate");
-        let result_aggregated = tag_input(&aggregated, &domain_sep)
+        let result_aggregated = tag_input(&aggregated, domain_sep)
             .expect("IO-Pattern should validate");
         assert_eq!(result, result_aggregated);
     }

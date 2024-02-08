@@ -5,7 +5,7 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use dusk_bls12_381::BlsScalar;
-use safe::{DomainSeparator, Error, IOCall, Permutation, Sponge};
+use safe::{Error, IOCall, Permutation, Sponge};
 
 const W: usize = 7;
 
@@ -50,7 +50,7 @@ impl State {
 #[test]
 fn sponge() {
     // pick a domain-separator
-    let domain_sep = DomainSeparator::from(0);
+    let domain_sep = 0;
 
     // build the io-pattern
     let mut iopattern = Vec::new();
@@ -144,7 +144,7 @@ fn sponge() {
 #[test]
 fn absorb_fails() {
     // pick a domain-separator
-    let domain_sep = DomainSeparator::from(0);
+    let domain_sep = 0;
 
     // build the io-pattern
     let mut iopattern = Vec::new();
@@ -173,7 +173,7 @@ fn absorb_fails() {
 #[test]
 fn squeeze_fails() {
     // pick a domain-separator
-    let domain_sep = DomainSeparator::from(0);
+    let domain_sep = 0;
 
     // build the io-pattern
     let mut iopattern = Vec::new();
@@ -203,7 +203,7 @@ fn squeeze_fails() {
 #[test]
 fn finish_fails() {
     // pick a domain-separator
-    let domain_sep = DomainSeparator::from(0);
+    let domain_sep = 0;
 
     // build the io-pattern
     let mut iopattern = Vec::new();

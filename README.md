@@ -81,7 +81,7 @@ use dusk_bls12_381::BlsScalar;
 use ff::Field;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use safe::{DomainSeparator, Error, IOCall, Permutation, Sponge};
+use safe::{Error, IOCall, Permutation, Sponge};
 
 const W: usize = 7;
 
@@ -124,7 +124,7 @@ impl State {
 }
 
 // pick a domain-separator
-let domain_sep = DomainSeparator::from(0);
+let domain_sep = 0;
 
 // generate random input
 let mut rng = StdRng::seed_from_u64(0x42424242);
