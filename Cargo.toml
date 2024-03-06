@@ -1,0 +1,18 @@
+[package]
+name = "dusk-safe"
+version = "0.1.0"
+description = "Sponge API for Field Elements"
+categories = ["algorithms", "cryptography", "no-std"]
+keywords = ["cryptography", "zero-knowledge", "crypto"]
+
+repository = "https://github.com/dusk-network/safe"
+edition = "2021"
+license = "MPL-2.0"
+
+[dependencies]
+zeroize = "1"
+
+[dev-dependencies]
+dusk-bls12_381 = { version = "0.13", default-features = false }
+ff = { version = "0.13", default-features = false }
+rand = { version = "0.8", default-features = false, features = ["getrandom", "std_rng"] }
