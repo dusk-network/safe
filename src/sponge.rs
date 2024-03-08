@@ -55,29 +55,6 @@ where
     output: Vec<T>,
 }
 
-impl<S, T, const W: usize> Drop for Sponge<S, T, W>
-where
-    S: Safe<T, W>,
-    T: Default + Copy,
-{
-    fn drop(&mut self) {
-        self.zeroize();
-    }
-}
-
-impl<S, T, const W: usize> Zeroize for Sponge<S, T, W>
-where
-    S: Safe<T, W>,
-    T: Default + Copy,
-{
-    fn zeroize(&mut self) {
-        self.state.iter_mut().for_each(|elem| *elem = T::default());
-        self.pos_absorb = 0;
-        self.pos_squeeze = 0;
-        self.output.iter_mut().for_each(|elem| *elem = T::default());
-    }
-}
-
 impl<S, T, const W: usize> Sponge<S, T, W>
 where
     S: Safe<T, W>,
@@ -94,14 +71,14 @@ where
     /// `T`. It’s done once in the lifetime of a sponge.
     pub fn start(
         safe: S,
-        iopattern: Vec<Call>,
+        iopattern: impl Into<Vec<Call>>,
         domain_sep: u64,
     ) -> Result<Self, Error> {
         // Compute the tag and initialize the state.
         // Note: This will return an error if the io-pattern is invalid.
+        let iopattern: Vec<Call> = iopattern.into();
         let mut safe = safe;
-        let tag_input = tag_input(&iopattern, domain_sep)?;
-        let tag = safe.tag(&tag_input);
+        let tag = safe.tag(&tag_input(&iopattern, domain_sep)?);
         let state = S::initialized_state(tag);
 
         Ok(Self {
@@ -219,5 +196,28 @@ where
         self.io_count += 1;
 
         Ok(())
+    }
+}
+
+impl<S, T, const W: usize> Drop for Sponge<S, T, W>
+where
+    S: Safe<T, W>,
+    T: Default + Copy,
+{
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+impl<S, T, const W: usize> Zeroize for Sponge<S, T, W>
+where
+    S: Safe<T, W>,
+    T: Default + Copy,
+{
+    fn zeroize(&mut self) {
+        self.state.iter_mut().for_each(|elem| *elem = T::default());
+        self.pos_absorb = 0;
+        self.pos_squeeze = 0;
+        self.output.iter_mut().for_each(|elem| *elem = T::default());
     }
 }
