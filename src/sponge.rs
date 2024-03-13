@@ -12,7 +12,7 @@ use crate::{tag_input, Call, Error};
 /// Trait to implement the Sponge API
 pub trait Safe<T, const W: usize>
 where
-    T: Default + Copy,
+    T: Default + Copy + Zeroize,
 {
     /// Apply one permutation to the state.
     fn permute(&mut self, state: &mut [T; W]);
@@ -43,22 +43,22 @@ where
 pub struct Sponge<S, T, const W: usize>
 where
     S: Safe<T, W>,
-    T: Default + Copy,
+    T: Default + Copy + Zeroize,
 {
     state: [T; W],
-    safe: S,
+    pub(crate) safe: S,
     pos_absorb: usize,
     pos_squeeze: usize,
     io_count: usize,
     iopattern: Vec<Call>,
     domain_sep: u64,
-    output: Vec<T>,
+    pub(crate) output: Vec<T>,
 }
 
 impl<S, T, const W: usize> Sponge<S, T, W>
 where
     S: Safe<T, W>,
-    T: Default + Copy,
+    T: Default + Copy + Zeroize,
 {
     /// The capacity of the sponge.
     const CAPACITY: usize = 1;
@@ -202,7 +202,7 @@ where
 impl<S, T, const W: usize> Drop for Sponge<S, T, W>
 where
     S: Safe<T, W>,
-    T: Default + Copy,
+    T: Default + Copy + Zeroize,
 {
     fn drop(&mut self) {
         self.zeroize();
@@ -212,12 +212,12 @@ where
 impl<S, T, const W: usize> Zeroize for Sponge<S, T, W>
 where
     S: Safe<T, W>,
-    T: Default + Copy,
+    T: Default + Copy + Zeroize,
 {
     fn zeroize(&mut self) {
-        self.state.iter_mut().for_each(|elem| *elem = T::default());
-        self.pos_absorb = 0;
-        self.pos_squeeze = 0;
-        self.output.iter_mut().for_each(|elem| *elem = T::default());
+        self.state.zeroize();
+        self.pos_absorb.zeroize();
+        self.pos_squeeze.zeroize();
+        self.output.zeroize();
     }
 }
