@@ -18,6 +18,11 @@ mod sponge;
 pub use error::Error;
 pub use sponge::{Safe, Sponge};
 
+#[cfg(feature = "encryption")]
+mod encryption;
+#[cfg(feature = "encryption")]
+pub use encryption::{decrypt, encrypt, Encryption};
+
 /// Enum to encode the calls to [`Sponge::absorb`] and [`Sponge::squeeze`] that
 /// make the io-pattern.
 ///

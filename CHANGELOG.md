@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add authenticated encryption and decryption [#6]
+
 ### Changed
 
 - Let `Sponge::start` take the io-pattern as `impl Into<Vec<Call>>` [#4]
@@ -24,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Add documentation
 
 <!-- ISSUES -->
+[#6]: https://github.com/dusk-network/safe/issues/6
 [#4]: https://github.com/dusk-network/safe/issues/4
 [#3]: https://github.com/dusk-network/safe/issues/3
 
