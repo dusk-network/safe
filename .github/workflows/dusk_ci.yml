@@ -12,7 +12,7 @@ jobs:
     uses: dusk-network/.github/.github/workflows/code-analysis.yml@main
     with:
       clippy_default: false
-      clippy_args: -- -D warnings
+      clippy_args: --features=encryption -- -D warnings
 
   dusk_analyzer:
     name: Dusk Analyzer
@@ -21,3 +21,5 @@ jobs:
   test_nightly:
     name: Run tests
     uses: dusk-network/.github/.github/workflows/run-tests.yml@main
+    with:
+      test_flags: --features=encryption
