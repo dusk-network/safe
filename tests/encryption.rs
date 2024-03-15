@@ -92,7 +92,7 @@ fn encrypt_decrypt() -> Result<(), Error> {
         DOMAIN,
         &message,
         &shared_secret.to_hash_inputs(),
-        nonce,
+        &nonce,
     )?;
 
     let decrypted_message = decrypt(
@@ -100,7 +100,7 @@ fn encrypt_decrypt() -> Result<(), Error> {
         DOMAIN,
         &cipher,
         &shared_secret.to_hash_inputs(),
-        nonce,
+        &nonce,
     )?;
 
     assert_eq!(decrypted_message, message);
@@ -121,7 +121,7 @@ fn incorrect_shared_secret_fails() -> Result<(), Error> {
         DOMAIN,
         &message,
         &shared_secret.to_hash_inputs(),
-        nonce,
+        &nonce,
     )?;
 
     let wrong_shared_secret =
@@ -134,7 +134,7 @@ fn incorrect_shared_secret_fails() -> Result<(), Error> {
             DOMAIN,
             &cipher,
             &wrong_shared_secret.to_hash_inputs(),
-            nonce,
+            &nonce,
         )
         .unwrap_err(),
         Error::DecryptionFailed
@@ -156,7 +156,7 @@ fn incorrect_nonce_fails() -> Result<(), Error> {
         DOMAIN,
         &message,
         &shared_secret.to_hash_inputs(),
-        nonce,
+        &nonce,
     )?;
 
     let wrong_nonce = BlsScalar::random(&mut rng);
@@ -168,7 +168,7 @@ fn incorrect_nonce_fails() -> Result<(), Error> {
             DOMAIN,
             &cipher,
             &shared_secret.to_hash_inputs(),
-            wrong_nonce,
+            &wrong_nonce,
         )
         .unwrap_err(),
         Error::DecryptionFailed
@@ -178,7 +178,7 @@ fn incorrect_nonce_fails() -> Result<(), Error> {
 }
 
 #[test]
-fn incorrect_domian_fails() -> Result<(), Error> {
+fn incorrect_domain_fails() -> Result<(), Error> {
     let mut rng = StdRng::seed_from_u64(0x42424242);
     let message_len = 21usize;
 
@@ -190,7 +190,7 @@ fn incorrect_domian_fails() -> Result<(), Error> {
         DOMAIN,
         &message,
         &shared_secret.to_hash_inputs(),
-        nonce,
+        &nonce,
     )?;
 
     assert_eq!(
@@ -199,7 +199,7 @@ fn incorrect_domian_fails() -> Result<(), Error> {
             1u64,
             &cipher,
             &shared_secret.to_hash_inputs(),
-            nonce,
+            &nonce,
         )
         .unwrap_err(),
         Error::DecryptionFailed
@@ -221,7 +221,7 @@ fn incorrect_cipher_fails() -> Result<(), Error> {
         DOMAIN,
         &message,
         &shared_secret.to_hash_inputs(),
-        nonce,
+        &nonce,
     )?;
 
     let mut wrong_cipher = cipher.clone();
@@ -232,7 +232,7 @@ fn incorrect_cipher_fails() -> Result<(), Error> {
             1u64,
             &wrong_cipher,
             &shared_secret.to_hash_inputs(),
-            nonce,
+            &nonce,
         )
         .unwrap_err(),
         Error::DecryptionFailed
@@ -246,7 +246,7 @@ fn incorrect_cipher_fails() -> Result<(), Error> {
             1u64,
             &wrong_cipher,
             &shared_secret.to_hash_inputs(),
-            nonce,
+            &nonce,
         )
         .unwrap_err(),
         Error::DecryptionFailed

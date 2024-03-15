@@ -55,7 +55,7 @@ pub fn encrypt<E, T, const W: usize>(
     domain_sep: impl Into<u64>,
     message: impl AsRef<[T]>,
     shared_secret: &[T; 2],
-    nonce: T,
+    nonce: &T,
 ) -> Result<Vec<T>, Error>
 where
     E: Safe<T, W> + Encryption<T, W>,
@@ -69,7 +69,7 @@ where
         domain_sep.into(),
         message_len,
         shared_secret,
-        &nonce,
+        nonce,
     )?;
 
     // absorb message
@@ -110,7 +110,7 @@ pub fn decrypt<E, T, const W: usize>(
     domain_sep: impl Into<u64>,
     cipher: impl AsRef<[T]>,
     shared_secret: &[T; 2],
-    nonce: T,
+    nonce: &T,
 ) -> Result<Vec<T>, Error>
 where
     E: Safe<T, W> + Encryption<T, W>,
@@ -124,7 +124,7 @@ where
         domain_sep.into(),
         message_len,
         shared_secret,
-        &nonce,
+        nonce,
     )?;
 
     // construct the message by subtracting sponge.output from the cipher

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Let `Sponge::start` take the io-pattern as `impl Into<Vec<Call>>` [#4]
+- Change `nonce` to be `&T` instead of `T` in `encrypt` and `decrypt` [#9]
 
 ## [0.1.0] - 2024-03-07
 
