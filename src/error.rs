@@ -17,6 +17,10 @@ pub enum Error {
     /// The input doesn't yield enough input elements.
     TooFewInputElements,
 
+    /// Failed to encrypt the message into the cipher with the provided secret
+    /// and nonce.
+    EncryptionFailed,
+
     /// Failed to decrypt the message from the cipher with the provided secret
     /// and nonce.
     DecryptionFailed,

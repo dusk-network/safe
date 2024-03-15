@@ -85,6 +85,11 @@ where
         cipher[i] = sponge.safe.add(&cipher[i], &message[i]);
     }
 
+    // cipher should yield exactly message_len + 1 elements
+    if cipher.len() != message_len + 1 {
+        return Err(Error::EncryptionFailed);
+    }
+
     // finish the sponge, erase cipher upon error
     match sponge.finish() {
         Ok(mut output) => {
@@ -93,7 +98,7 @@ where
         }
         Err(e) => {
             cipher.zeroize();
-            Err(e.into())
+            Err(e)
         }
     }
 }
@@ -118,7 +123,7 @@ where
         safe,
         domain_sep.into(),
         message_len,
-        &shared_secret,
+        shared_secret,
         &nonce,
     )?;
 
@@ -143,6 +148,11 @@ where
         return Err(Error::DecryptionFailed);
     };
 
+    // cipher should yield exactly message_len + 1 elements
+    if cipher.len() != message_len + 1 {
+        return Err(Error::DecryptionFailed);
+    }
+
     // finish sponge, erase message upon error
     match sponge.finish() {
         Ok(mut output) => {
@@ -151,7 +161,7 @@ where
         }
         Err(e) => {
             message.zeroize();
-            Err(e.into())
+            Err(e)
         }
     }
 }
