@@ -20,7 +20,7 @@ pub trait Encryption<T, const W: usize> {
     fn subtract(&mut self, minuend: &T, subtrahend: &T) -> T;
 
     /// Implement equality over the type `T`.
-    fn assert_equal(&mut self, lhs: &T, rhs: &T) -> bool;
+    fn is_equal(&mut self, lhs: &T, rhs: &T) -> bool;
 }
 
 fn prepare_sponge<E, T, const W: usize>(
@@ -142,7 +142,7 @@ where
     // assert that the last element of the cipher is equal to the last element
     // of the sponge output
     let s = sponge.output[message_len];
-    if !sponge.safe.assert_equal(&s, &cipher[message_len]) {
+    if !sponge.safe.is_equal(&s, &cipher[message_len]) {
         message.zeroize();
         sponge.zeroize();
         return Err(Error::DecryptionFailed);
