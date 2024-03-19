@@ -54,7 +54,7 @@ impl Encryption<BlsScalar, W> for HashState {
         minuend - subtrahend
     }
 
-    fn assert_equal(&mut self, lhs: &BlsScalar, rhs: &BlsScalar) -> bool {
+    fn is_equal(&mut self, lhs: &BlsScalar, rhs: &BlsScalar) -> bool {
         lhs == rhs
     }
 }
