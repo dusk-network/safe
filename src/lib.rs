@@ -24,9 +24,9 @@ mod encryption;
 pub use encryption::{decrypt, encrypt, Encryption};
 
 /// Enum to encode the calls to [`Sponge::absorb`] and [`Sponge::squeeze`] that
-/// make the io-pattern.
+/// make the IO-pattern.
 ///
-/// An implementation must forbid to any further usage of the sponge and any of
+/// An implementation must forbid any further usage of the sponge and any of
 /// its internal data if this pattern is not followed. In particular, the output
 /// from any previous calls to [`Sponge::squeeze`] must not be used.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -38,7 +38,7 @@ pub enum Call {
 }
 
 impl Call {
-    /// Return the internal call length
+    /// Returns the length of the call.
     pub fn call_len(&self) -> &usize {
         match self {
             Call::Absorb(len) => len,
@@ -50,12 +50,22 @@ impl Call {
 /// Encode the input for the tag for the sponge instance, using the
 /// domain-separator and IO-pattern.
 ///
-/// This function returns an error if the io-pattern is not sensible.
+/// This function returns an error if the IO-pattern is not sensible.
+///
+/// # Parameters
+///
+/// - `iopattern`: A slice of `Call` enum representing the IO-pattern.
+/// - `domain_sep`: The domain separator to be used for encoding.
+///
+/// # Returns
+///
+/// A `Result` containing a vector of `u8` on success, or an `Error` if the
+/// IO-pattern is not valid.
 fn tag_input(
     iopattern: impl AsRef<[Call]>,
     domain_sep: u64,
 ) -> Result<Vec<u8>, Error> {
-    // make sure the io-pattern is valid: start with absorb, end with squeeze
+    // make sure the IO-pattern is valid: start with absorb, end with squeeze
     // and none of the calls have a len == 0
     validate_io_pattern(iopattern.as_ref())?;
 
@@ -102,12 +112,21 @@ fn tag_input(
     Ok(input)
 }
 
-/// Check that the io-pattern is sensible:
-/// - It doesn't start with a call to squeeze.
-/// - It doesn't end with a call to absorb.
+/// Check that the IO-pattern is sensible. This means that:
+/// - It doesn't start with a call to squeeze or
+/// - It doesn't end with a call to absorb or
 /// - Every call to absorb or squeeze has a positive length.
+///
+/// # Parameters
+///
+/// - `iopattern`: A slice of `Call` enum representing the IO-pattern.
+///
+/// # Returns
+///
+/// A `Result` indicating success if the IO-pattern is valid, otherwise an
+/// `Error`.
 fn validate_io_pattern(iopattern: impl AsRef<[Call]>) -> Result<(), Error> {
-    // make sure the io-pattern starts with a call to absorb and ends with a
+    // make sure the IO-pattern starts with a call to absorb and ends with a
     // call to squeeze
     match (iopattern.as_ref().first(), iopattern.as_ref().last()) {
         (Some(Call::Absorb(_)), Some(Call::Squeeze(_))) => {}

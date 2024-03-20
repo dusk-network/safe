@@ -9,20 +9,38 @@ use alloc::vec::Vec;
 use crate::{Call, Error, Safe, Sponge};
 use zeroize::Zeroize;
 
-/// Trait that together with the [`Safe`] trait, implements everything that is
-/// needed for encryption using the SAFE framework.
+/// Trait defining encryption operations along with the [`Safe`] trait,
+/// facilitating encryption using the SAFE framework.
 ///
-/// The specific implementation of subtraction and equality is needed for being
-/// able to use the trait in a zero-knowledge circuit.
+/// Note: The trait's specific implementation of subtraction and equality
+/// enables usage within zero-knowledge circuits.
 pub trait Encryption<T, const W: usize> {
-    /// Specifically implement subtraction for the type `T`:
-    /// minuend - subtrahend = difference
+    /// Subtracts `subtrahend` from `minuend` to produce the difference.
+    ///
+    /// # Parameters
+    ///
+    /// - `minuend`: The value from which to subtract.
+    /// - `subtrahend`: The value to subtract.
+    ///
+    /// # Returns
+    ///
+    /// The difference between `minuend` and `subtrahend`.
     fn subtract(&mut self, minuend: &T, subtrahend: &T) -> T;
 
-    /// Implement equality over the type `T`.
+    /// Asserts equality between `lhs` and `rhs`.
+    ///
+    /// # Parameters
+    ///
+    /// - `lhs`: The left-hand side value for comparison.
+    /// - `rhs`: The right-hand side value for comparison.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if `lhs` is equal to `rhs`, otherwise `false`.
     fn is_equal(&mut self, lhs: &T, rhs: &T) -> bool;
 }
 
+/// Prepares the sponge for encryption or decryption.
 fn prepare_sponge<E, T, const W: usize>(
     safe: E,
     domain_sep: u64,
@@ -34,11 +52,10 @@ where
     E: Safe<T, W> + Encryption<T, W>,
     T: Default + Copy + Zeroize,
 {
-    // start sponge
+    // start sponge initialization
     let mut sponge = Sponge::start(safe, io_pattern(message_len), domain_sep)?;
 
-    // absorb shared secret
-    // absorb nonce
+    // absorb shared secret and nonce
     sponge.absorb(2, shared_secret)?;
     sponge.absorb(1, [*nonce])?;
 
@@ -48,8 +65,22 @@ where
     Ok(sponge)
 }
 
-/// This function encrypts a message using a shared secret and nonce, and
-/// returns the cipher-text.
+/// Encrypts a message using a shared secret and nonce, and returns the
+/// cipher-text.
+///
+/// # Parameters
+///
+/// - `safe`: An instance implementing the [`Safe`] and [`Encryption`] traits.
+/// - `domain_sep`: The domain separator to be used for the tag input.
+/// - `message`: The message to be encrypted.
+/// - `shared_secret`: The shared secret key used for encryption (usually this
+///   is an elliptic curve point obtained by a Diffie-Hellman key exchange).
+/// - `nonce`: A unique value for encryption.
+///
+/// # Returns
+///
+/// Returns the cipher-text as a vector of elements on success, or an `Error` if
+/// the encryption failed.
 pub fn encrypt<E, T, const W: usize>(
     safe: E,
     domain_sep: impl Into<u64>,
@@ -78,14 +109,14 @@ where
     // squeeze one last element
     sponge.squeeze(1)?;
 
-    // encryption cipher is the sponge.output with the message elements added to
-    // the first message_len elements
+    // encryption cipher is the sponge.output with the message elements added
+    // to the first message_len elements
     let mut cipher = Vec::from(&sponge.output[..]);
     for i in 0..message_len {
         cipher[i] = sponge.safe.add(&cipher[i], &message[i]);
     }
 
-    // cipher should yield exactly message_len + 1 elements
+    // cipher must yield exactly message_len + 1 elements
     if cipher.len() != message_len + 1 {
         return Err(Error::EncryptionFailed);
     }
@@ -103,8 +134,22 @@ where
     }
 }
 
-/// This function decrypts a cipher-text, using a shared secret and nonce, and
-/// returns the decrypted message upon success.
+/// Decrypts a cipher-text using a shared secret and nonce, and returns the
+/// decrypted message upon success.
+///
+/// # Parameters
+///
+/// - `safe`: An instance implementing the [`Safe`] and [`Encryption`] traits.
+/// - `domain_sep`: The domain separator to be used for the tag input.
+/// - `cipher`: The cipher-text to be decrypted.
+/// - `shared_secret`: The shared secret key used for decryption (usually this
+///   is an elliptic curve point obtained by a Diffie-Hellman key exchange).
+/// - `nonce`: A unique value for decryption.
+///
+/// # Returns
+///
+/// Returns the decrypted message as a vector of elements, or an `Error` if
+/// the decryption failed.
 pub fn decrypt<E, T, const W: usize>(
     safe: E,
     domain_sep: impl Into<u64>,
@@ -148,12 +193,12 @@ where
         return Err(Error::DecryptionFailed);
     };
 
-    // cipher should yield exactly message_len + 1 elements
+    // cipher must yield exactly message_len + 1 elements
     if cipher.len() != message_len + 1 {
         return Err(Error::DecryptionFailed);
     }
 
-    // finish sponge, erase message upon error
+    // finish sponge, erase decrypted message upon error
     match sponge.finish() {
         Ok(mut output) => {
             output.zeroize();
@@ -166,6 +211,7 @@ where
     }
 }
 
+/// Defines the input-output pattern for the encryption and decryption.
 const fn io_pattern(message_len: usize) -> [Call; 5] {
     [
         Call::Absorb(2),
