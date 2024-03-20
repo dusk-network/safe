@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add authenticated encryption and decryption [#6]
 - Add check for `cipher.len == message.len + 1` in `encrypt` and `decrypt` [#9]
+- Add check for max squeeze and absorb len [#17]
 
 ### Changed
 
@@ -32,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Add documentation
 
 <!-- ISSUES -->
+[#17]: https://github.com/dusk-network/safe/issues/17
 [#15]: https://github.com/dusk-network/safe/issues/15
 [#13]: https://github.com/dusk-network/safe/issues/13
 [#9]: https://github.com/dusk-network/safe/issues/9

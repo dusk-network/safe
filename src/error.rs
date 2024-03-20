@@ -12,10 +12,10 @@ pub enum Error {
     IOPatternViolation,
 
     /// This error occurs when the provided IO-pattern is not valid.
-    /// This means that:
-    /// - It doesn't start with a call to squeeze or
-    /// - It doesn't end with a call to absorb or
-    /// - Every call to absorb or squeeze has a positive length.
+    /// This means that one of the following is not met:
+    /// - It doesn't start with a call to squeeze
+    /// - It doesn't end with a call to absorb
+    /// - Every call to absorb or squeeze has a length between 0 < len < 2^31
     InvalidIOPattern,
 
     /// This error occurs when the input elements provided to the

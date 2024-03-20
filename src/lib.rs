@@ -113,9 +113,9 @@ fn tag_input(
 }
 
 /// Check that the IO-pattern is sensible. This means that:
-/// - It doesn't start with a call to squeeze or
-/// - It doesn't end with a call to absorb or
-/// - Every call to absorb or squeeze has a positive length.
+/// - It doesn't start with a call to squeeze
+/// - It doesn't end with a call to absorb
+/// - Every call to absorb or squeeze has a length between 0 < len < 2^31
 ///
 /// # Parameters
 ///
@@ -133,8 +133,13 @@ fn validate_io_pattern(iopattern: impl AsRef<[Call]>) -> Result<(), Error> {
         _ => return Err(Error::InvalidIOPattern),
     }
 
-    // check that every call to absorb or squeeze has a positive length
-    if iopattern.as_ref().iter().any(|call| *call.call_len() == 0) {
+    // check that every call to absorb or squeeze has a length between:
+    // 0 < len < 2^31
+    const MAX_LEN: usize = u32::MAX as usize >> 1;
+    if iopattern.as_ref().iter().any(|call| {
+        let call_len = *call.call_len();
+        call_len == 0 || call_len > MAX_LEN
+    }) {
         Err(Error::InvalidIOPattern)
     } else {
         Ok(())
@@ -219,6 +224,11 @@ mod tests {
             Call::Absorb(3),
             Call::Squeeze(4),
         ];
+        assert!(validate_io_pattern(&iopattern).is_err());
+
+        let iopattern =
+            // vec![Call::Absorb(3), Call::Absorb(2147483648), Call::Squeeze(1)];
+            vec![Call::Absorb(3), Call::Absorb(1 << 31), Call::Squeeze(1)];
         assert!(validate_io_pattern(&iopattern).is_err());
     }
 
