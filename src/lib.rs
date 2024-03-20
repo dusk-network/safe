@@ -227,7 +227,6 @@ mod tests {
         assert!(validate_io_pattern(&iopattern).is_err());
 
         let iopattern =
-            // vec![Call::Absorb(3), Call::Absorb(2147483648), Call::Squeeze(1)];
             vec![Call::Absorb(3), Call::Absorb(1 << 31), Call::Squeeze(1)];
         assert!(validate_io_pattern(&iopattern).is_err());
     }
