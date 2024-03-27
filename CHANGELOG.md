@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2024-03-27
+
 ### Added
 
 - Add authenticated encryption and decryption [#6]
@@ -43,4 +45,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- VERSIONS -->
 [Unreleased]: https://github.com/dusk-network/safe/compare/v0.1.0...HEAD
+[0.2.0]: https://github.com/dusk-network/safe/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/dusk-network/safe/releases/tag/v0.1.0
