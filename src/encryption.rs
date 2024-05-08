@@ -193,11 +193,6 @@ where
         return Err(Error::DecryptionFailed);
     };
 
-    // cipher must yield exactly message_len + 1 elements
-    if cipher.len() != message_len + 1 {
-        return Err(Error::DecryptionFailed);
-    }
-
     // finish sponge, erase decrypted message upon error
     match sponge.finish() {
         Ok(mut output) => {
