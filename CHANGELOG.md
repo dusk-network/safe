@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Omit unnecessary check on `message_len` in `decrypt` [#21]
+
 ## [0.2.0] - 2024-03-27
 
 ### Added
@@ -35,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Add documentation
 
 <!-- ISSUES -->
+[#21]: https://github.com/dusk-network/safe/issues/21
 [#17]: https://github.com/dusk-network/safe/issues/17
 [#15]: https://github.com/dusk-network/safe/issues/15
 [#13]: https://github.com/dusk-network/safe/issues/13
