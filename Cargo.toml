@@ -13,7 +13,7 @@ license = "MPL-2.0"
 zeroize = "1"
 
 [dev-dependencies]
-dusk-bls12_381 = { version = "0.13", default-features = false, features = ["zeroize"] }
+dusk-bls12_381 = { version = "0.14", default-features = false, features = ["zeroize"] }
 dusk-jubjub = { version = "0.14", default-features = false }
 ff = { version = "0.13", default-features = false }
 rand = { version = "0.8", default-features = false, features = ["getrandom", "std_rng"] }
