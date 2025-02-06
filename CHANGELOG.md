@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Update dependency `dusk-bls12_381` to 0.14
 - Update dependency `dusk-jubjub` to 0.15
+- Change rust toolchain version to `nightly-2023-11-10` (1.75.0) [#26]
 
 ## [0.2.1] - 2024-05-08
 
@@ -46,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Add documentation
 
 <!-- ISSUES -->
+[#26]: https://github.com/dusk-network/safe/issues/26
 [#21]: https://github.com/dusk-network/safe/issues/21
 [#17]: https://github.com/dusk-network/safe/issues/17
 [#15]: https://github.com/dusk-network/safe/issues/15
