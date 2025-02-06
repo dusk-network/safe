@@ -1,6 +1,6 @@
 [package]
 name = "dusk-safe"
-version = "0.2.1"
+version = "0.3.0"
 description = "Sponge API for Field Elements"
 categories = ["algorithms", "cryptography", "no-std"]
 keywords = ["cryptography", "zero-knowledge", "crypto"]
