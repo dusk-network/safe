@@ -6,7 +6,8 @@ categories = ["algorithms", "cryptography", "no-std"]
 keywords = ["cryptography", "zero-knowledge", "crypto"]
 
 repository = "https://github.com/dusk-network/safe"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 license = "MPL-2.0"
 
 [dependencies]

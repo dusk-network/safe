@@ -21,7 +21,7 @@ pub use sponge::{Safe, Sponge};
 #[cfg(feature = "encryption")]
 mod encryption;
 #[cfg(feature = "encryption")]
-pub use encryption::{decrypt, encrypt, Encryption};
+pub use encryption::{Encryption, decrypt, encrypt};
 
 /// Enum to encode the calls to [`Sponge::absorb`] and [`Sponge::squeeze`] that
 /// make the IO-pattern.

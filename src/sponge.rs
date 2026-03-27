@@ -7,7 +7,7 @@
 use alloc::vec::Vec;
 use zeroize::Zeroize;
 
-use crate::{tag_input, Call, Error};
+use crate::{Call, Error, tag_input};
 
 /// This trait defines the behavior of a sponge algorithm.
 ///

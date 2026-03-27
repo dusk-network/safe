@@ -19,7 +19,8 @@ pub enum Error {
     InvalidIOPattern,
 
     /// This error occurs when the input elements provided to the
-    /// [`Sponge::absorb`] are less than the amount that should be absorbed.
+    /// [`Sponge::absorb`](crate::Sponge::absorb) are less than the amount
+    /// that should be absorbed.
     TooFewInputElements,
 
     /// This error indicates a failure during the encryption process.
