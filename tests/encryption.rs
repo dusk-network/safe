@@ -7,11 +7,11 @@
 #![cfg(feature = "encryption")]
 
 use dusk_bls12_381::BlsScalar;
-use dusk_jubjub::{JubJubExtended, JubJubScalar, GENERATOR_EXTENDED};
-use dusk_safe::{decrypt, encrypt, Encryption, Error, Safe};
+use dusk_jubjub::{GENERATOR_EXTENDED, JubJubExtended, JubJubScalar};
+use dusk_safe::{Encryption, Error, Safe, decrypt, encrypt};
 use ff::Field;
-use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand::rngs::StdRng;
 
 const W: usize = 7;
 const DOMAIN: u64 = 1 << 31;
