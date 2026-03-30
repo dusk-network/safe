@@ -5,6 +5,7 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use alloc::vec::Vec;
+
 use zeroize::Zeroize;
 
 use crate::{Call, Error, tag_input};

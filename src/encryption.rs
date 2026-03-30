@@ -6,8 +6,9 @@
 
 use alloc::vec::Vec;
 
-use crate::{Call, Error, Safe, Sponge};
 use zeroize::Zeroize;
+
+use crate::{Call, Error, Safe, Sponge};
 
 /// Trait defining encryption operations along with the [`Safe`] trait,
 /// facilitating encryption using the SAFE framework.
