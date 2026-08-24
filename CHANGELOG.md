@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Raise the MSRV to Rust 1.96.1 [#32]
+
 ## [0.3.0] - 2025-02-06
 
 ### Changed
@@ -49,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Add documentation
 
 <!-- ISSUES -->
+[#32]: https://github.com/dusk-network/safe/issues/32
 [#26]: https://github.com/dusk-network/safe/issues/26
 [#21]: https://github.com/dusk-network/safe/issues/21
 [#17]: https://github.com/dusk-network/safe/issues/17
