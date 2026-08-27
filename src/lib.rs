@@ -41,8 +41,7 @@ impl Call {
     /// Returns the length of the call.
     pub fn call_len(&self) -> &usize {
         match self {
-            Call::Absorb(len) => len,
-            Call::Squeeze(len) => len,
+            Call::Absorb(len) | Call::Squeeze(len) => len,
         }
     }
 }
