@@ -138,9 +138,10 @@ where
     /// A result containing the output vector on success, or an `Error` if the
     /// IO-pattern wasn't followed.
     pub fn finish(mut self) -> Result<Vec<T>, Error> {
-        let ret = match self.io_count == self.iopattern.len() {
-            true => Ok(self.output.clone()),
-            false => Err(Error::IOPatternViolation),
+        let ret = if self.io_count == self.iopattern.len() {
+            Ok(core::mem::take(&mut self.output))
+        } else {
+            Err(Error::IOPatternViolation)
         };
         // no matter the return, we erase the internal state of the sponge
         self.zeroize();
@@ -175,10 +176,6 @@ where
             // only proceed if we expect a call to absorb with the correct
             // length as per the IO-pattern
             Some(Call::Absorb(call_len)) if *call_len == len => {}
-            Some(Call::Absorb(_)) => {
-                self.zeroize();
-                return Err(Error::IOPatternViolation);
-            }
             _ => {
                 self.zeroize();
                 return Err(Error::IOPatternViolation);
@@ -229,10 +226,6 @@ where
             // only proceed if we expect a call to squeeze with the correct
             // length as per the IO-pattern
             Some(Call::Squeeze(call_len)) if *call_len == len => {}
-            Some(Call::Squeeze(_)) => {
-                self.zeroize();
-                return Err(Error::IOPatternViolation);
-            }
             _ => {
                 self.zeroize();
                 return Err(Error::IOPatternViolation);

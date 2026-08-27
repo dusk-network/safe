@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Simplify sponge finalization and IO-pattern validation
 - Raise the MSRV to Rust 1.96.1 [#32]
 
 ## [0.3.0] - 2025-02-06
