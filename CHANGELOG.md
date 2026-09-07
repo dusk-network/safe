@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject empty ciphertext consistently in `decrypt` [#35]
+
 ### Changed
 
 - Simplify sponge finalization and IO-pattern validation
@@ -54,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Add documentation
 
 <!-- ISSUES -->
+[#35]: https://github.com/dusk-network/safe/issues/35
 [#32]: https://github.com/dusk-network/safe/issues/32
 [#26]: https://github.com/dusk-network/safe/issues/26
 [#21]: https://github.com/dusk-network/safe/issues/21

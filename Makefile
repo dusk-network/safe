@@ -15,8 +15,9 @@ cq: ## Run code quality checks (formatting + clippy)
 check: ## Type-check
 	@cargo check --features=encryption
 
-test: ## Run tests
+test: ## Run tests in debug and release profiles
 	@cargo test --features=encryption
+	@cargo test --release --features=encryption
 
 no-std: ## Verify no_std compatibility on bare-metal target
 	@rustup target add thumbv6m-none-eabi 2>/dev/null || true
