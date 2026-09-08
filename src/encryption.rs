@@ -81,7 +81,7 @@ where
 /// # Returns
 ///
 /// Returns the cipher-text as a vector of elements on success, or an `Error` if
-/// the encryption failed.
+/// the encryption failed. An empty message returns [`Error::InvalidIOPattern`].
 pub fn encrypt<E, T, const W: usize>(
     safe: E,
     domain_sep: impl Into<u64>,
@@ -150,7 +150,8 @@ where
 /// # Returns
 ///
 /// Returns the decrypted message as a vector of elements, or an `Error` if
-/// the decryption failed.
+/// the decryption failed. Cipher-text with fewer than two elements (a message
+/// element and an authentication tag) returns [`Error::InvalidIOPattern`].
 pub fn decrypt<E, T, const W: usize>(
     safe: E,
     domain_sep: impl Into<u64>,
@@ -163,7 +164,8 @@ where
     T: Default + Copy + Zeroize,
 {
     let cipher = cipher.as_ref();
-    let message_len = cipher.len() - 1;
+    let message_len =
+        cipher.len().checked_sub(1).ok_or(Error::InvalidIOPattern)?;
 
     let mut sponge = prepare_sponge(
         safe,

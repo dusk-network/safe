@@ -87,4 +87,4 @@ Examples:
 
 ### Changelog
 
-Maintain `CHANGELOG.md` with entries under `[Unreleased]` using [keep-a-changelog](https://keepachangelog.com/) format. If a change traces to a GitHub issue, reference it as a link: `[#42](https://github.com/dusk-network/safe/issues/42)`. Only link to GitHub issues — do not reference any other tracking system.
+Maintain `CHANGELOG.md` with entries under `[Unreleased]` using [keep-a-changelog](https://keepachangelog.com/) format. If a change traces to a GitHub issue, use a reference link such as `[#42]` and add `[#42]: https://github.com/dusk-network/safe/issues/42` under `<!-- ISSUES -->`. Only link to GitHub issues — do not reference any other tracking system.

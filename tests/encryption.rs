@@ -109,6 +109,23 @@ fn encrypt_decrypt() -> Result<(), Error> {
 }
 
 #[test]
+fn empty_message_and_short_ciphers_fail() {
+    let shared_secret = [BlsScalar::from(1), BlsScalar::from(2)];
+    let nonce = BlsScalar::from(3);
+
+    for cipher in [&[][..], &[BlsScalar::from(4)][..]] {
+        assert_eq!(
+            decrypt(HashState::new(), DOMAIN, cipher, &shared_secret, &nonce),
+            Err(Error::InvalidIOPattern)
+        );
+    }
+    assert_eq!(
+        encrypt(HashState::new(), DOMAIN, [], &shared_secret, &nonce),
+        Err(Error::InvalidIOPattern)
+    );
+}
+
+#[test]
 fn incorrect_shared_secret_fails() -> Result<(), Error> {
     let mut rng = StdRng::seed_from_u64(0x42424242);
     let message_len = 21usize;
