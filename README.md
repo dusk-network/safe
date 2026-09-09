@@ -3,7 +3,7 @@
 A generic API for sponge functions.
 
 This is a minimal, `no_std`, pure Rust implementation of a sponge function, based on [SAFE](https://eprint.iacr.org/2023/522.pdf) (Sponge API for Field Elements), to be used in permutation-based symmetric primitives' design, such as hash functions, MACs, authenticated encryption schemes, PRNGs, and other.
-The sponge is designed to be usable in zero-knowledge proving systems (ZKPs) as well as natively, operating on any type implementing the `Default` and `Copy` trait with a size of minimal 32 bytes.
+The sponge is designed to be usable in zero-knowledge proving systems (ZKPs) as well as natively, operating on types implementing `Default`, `Copy`, and `Zeroize`. The backend must provide a suitable field, permutation, tag hash, arithmetic and equality semantics; the Rust representation size alone does not establish cryptographic security.
 
 ## Introduction
 
@@ -29,7 +29,7 @@ The sponge constructed in this library is defined by:
 - an input-output (IO) pattern that defines the sequence to ingest `len` items of input (`absorb(len)`) and pruduce output (`squeeze(len)`) (eg. `[absorb(4), absorb(1), squeeze(3)]`)
 - a domain separator to distinguish between equivalent sponges with different usecases.
 
-Note: With the capacity beeing one element of type `T` we need to restrict `T` to be at least 256 bits. It is the responsibility of the user to properly serialize input of different sizes into a type with at least 256 bits.
+With capacity fixed to one field element, security depends on the actual field cardinality and the chosen permutation and tag hash, not `size_of::<T>()`. The backend must provide the additive identity and field arithmetic, use constant-time native operations on secrets, and properly constrain circuit operations. In a circuit, an equality callback may add a constraint and return `true`; authentication is not established until the resulting proof is successfully verified. Secrets retained in the backend require its own cleanup.
 
 ## Abstract API
 
@@ -39,10 +39,11 @@ Note: With the capacity beeing one element of type `T` we need to restrict `T` t
    - IO pattern has at least two calls.
    - First call is to `absorb`.
    - Last call is to `squeeze`.
-   - No call has a `len == 0`.
+   - The width is at least two.
+   - Individual calls and aggregated consecutive runs have lengths from 1 through `2^31 - 1`.
 2. Compute the tag using the IO pattern and a domain separator.
-   1. Encode the IO pattern as a list of 32-bit words whose MSB is set to 1 for `absorb` and to 0 for `squeeze`, and the length is added to the lower bits. Any contiguous calls to `absorb` and `squeeze` will be aggregated, e.g. the above example of an IO pattern of `[absorb(4), absorb(1), squeeze(3)]` will have the same encoding as `[absorb(5), squeeze(3)]`: `[0x8000_0005, 0x0000_0001]`.
-   2. Serialize the list of words into a byte string and append to it the domain separator: e.g. if the domain separator encoding is set to the two-byte sequence `0x4142`, then the example above would yield the string (with big-endian convention): `0x80000005000000014142`.
+   1. Encode the IO pattern as a list of 32-bit words whose MSB is set to 1 for `absorb` and to 0 for `squeeze`, and the length is added to the lower bits. Any contiguous calls to `absorb` and `squeeze` will be aggregated, e.g. the above example of an IO pattern of `[absorb(4), absorb(1), squeeze(3)]` will have the same encoding as `[absorb(5), squeeze(3)]`: `[0x8000_0005, 0x0000_0003]`.
+   2. Serialize the words in big-endian order and append the eight-byte big-endian `u64` domain separator. With separator `0x4142`, the example above yields `0x80000005000000030000000000004142`.
    3. Hash the byte string into the tag, an element of type `T`.
 3. Initialize first element of the state to the tag and set the remaining elements to the default value of `T`.
 4. Set both absorb and squeeze positions to zero.
@@ -50,8 +51,10 @@ Note: With the capacity beeing one element of type `T` we need to restrict `T` t
 
 ### `finish`
 
-1. If the IO count is equal to the length of the IO pattern, return the output vector, if not return an error.
-2. Erase the state and its variables
+1. Return the output vector only if the IO count equals the pattern length and the instance has never failed or been explicitly zeroized; otherwise return an error.
+2. Erase the state and its variables.
+
+Every operation error and explicit zeroization permanently invalidates that sponge. Subsequent absorb, squeeze and finish calls reject it; cloning a failed sponge does not restore validity. Debug formatting omits state, buffered output and the backend.
 
 ### `absorb(len, input)`
 

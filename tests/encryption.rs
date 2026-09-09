@@ -33,9 +33,7 @@ impl Safe<BlsScalar, W> for HashState {
         });
     }
 
-    // Setting the tag to a constant zero here so that the sponge output
-    // is predictable, this should *not* be done in production as it makes the
-    // resulting hash vulnerable to collisions attacks.
+    // Bind the mechanics fixture to the encoded pattern and domain.
     fn tag(&mut self, input: &[u8]) -> BlsScalar {
         BlsScalar::hash_to_scalar(input)
     }
@@ -226,48 +224,66 @@ fn incorrect_domain_fails() -> Result<(), Error> {
 }
 
 #[test]
+fn independent_encryption_vectors() {
+    // Generated independently with Python integer arithmetic/hashlib, not with
+    // this crate. This is a SAFE mechanics KAT, not a production backend KAT.
+    for line in include_str!("fixtures/encryption.txt").lines().skip(1) {
+        let (length, hex) = line.split_once(' ').unwrap();
+        let n = length.parse::<usize>().unwrap();
+        let expected: Vec<_> = (0..hex.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
+            .collect();
+        let message: Vec<_> =
+            (1..=n).map(|i| BlsScalar::from(i as u64)).collect();
+        let key = [BlsScalar::from(7), BlsScalar::from(8)];
+        let nonce = BlsScalar::from(9);
+        let cipher =
+            encrypt(HashState::new(), DOMAIN, &message, &key, &nonce).unwrap();
+        assert_eq!(
+            cipher.iter().flat_map(|s| s.to_bytes()).collect::<Vec<_>>(),
+            expected
+        );
+        assert_eq!(
+            decrypt(HashState::new(), DOMAIN, &cipher, &key, &nonce).unwrap(),
+            message
+        );
+    }
+}
+
+#[test]
 fn incorrect_cipher_fails() -> Result<(), Error> {
     let mut rng = StdRng::seed_from_u64(0x42424242);
-    let message_len = 21usize;
-
-    let (message, shared_secret, nonce) =
-        encryption_variables(&mut rng, message_len);
-
-    let cipher = encrypt(
-        HashState::new(),
-        DOMAIN,
-        &message,
-        &shared_secret.to_hash_inputs(),
-        &nonce,
-    )?;
-
-    let mut wrong_cipher = cipher.clone();
-    wrong_cipher[message_len] += BlsScalar::from(42);
-    assert_eq!(
-        decrypt(
-            HashState::new(),
-            1u64,
-            &wrong_cipher,
-            &shared_secret.to_hash_inputs(),
-            &nonce,
-        )
-        .unwrap_err(),
-        Error::DecryptionFailed
-    );
-
-    let mut wrong_cipher = cipher.clone();
-    wrong_cipher[0] += BlsScalar::from(42);
-    assert_eq!(
-        decrypt(
-            HashState::new(),
-            1u64,
-            &wrong_cipher,
-            &shared_secret.to_hash_inputs(),
-            &nonce,
-        )
-        .unwrap_err(),
-        Error::DecryptionFailed
-    );
-
+    let rate = W - 1;
+    for message_len in [
+        1,
+        rate - 1,
+        rate,
+        rate + 1,
+        2 * rate - 1,
+        2 * rate,
+        2 * rate + 1,
+        21,
+    ] {
+        let (message, shared_secret, nonce) =
+            encryption_variables(&mut rng, message_len);
+        let key = shared_secret.to_hash_inputs();
+        let cipher = encrypt(HashState::new(), DOMAIN, &message, &key, &nonce)?;
+        assert_eq!(
+            decrypt(HashState::new(), DOMAIN, &cipher, &key, &nonce)?,
+            message
+        );
+        // Change only one ciphertext element, including every position and the
+        // tag.
+        for position in 0..cipher.len() {
+            let mut wrong_cipher = cipher.clone();
+            wrong_cipher[position] += BlsScalar::from(42);
+            assert_eq!(
+                decrypt(HashState::new(), DOMAIN, &wrong_cipher, &key, &nonce),
+                Err(Error::DecryptionFailed),
+                "length {message_len}, position {position}"
+            );
+        }
+    }
     Ok(())
 }

@@ -6,6 +6,7 @@
 
 use dusk_bls12_381::BlsScalar;
 use dusk_safe::{Call, Error, Safe, Sponge};
+use zeroize::Zeroize;
 
 const W: usize = 7;
 
@@ -38,6 +39,122 @@ impl Rotate {
     pub fn new() -> Self {
         Self()
     }
+}
+
+#[test]
+fn failures_are_terminal() {
+    for case in 0..9 {
+        let mut sponge = Sponge::start(
+            Rotate::new(),
+            vec![Call::Absorb(2), Call::Squeeze(1)],
+            0,
+        )
+        .unwrap();
+        if case >= 5 {
+            sponge.absorb(2, [BlsScalar::one(); 2]).unwrap();
+        }
+        if case >= 7 {
+            sponge.squeeze(1).unwrap();
+        }
+        let error = match case {
+            0 => sponge.squeeze(1),
+            1 => sponge.absorb(1, [BlsScalar::one()]),
+            2 => sponge.absorb(3, [BlsScalar::one(); 3]),
+            3 => sponge.absorb(2, []),
+            4 => sponge.absorb(2, [BlsScalar::one()]),
+            5 | 7 => sponge.absorb(2, [BlsScalar::one(); 2]),
+            _ => sponge.squeeze(2),
+        };
+        assert_eq!(
+            error,
+            Err(if matches!(case, 3 | 4) {
+                Error::TooFewInputElements
+            } else {
+                Error::IOPatternViolation
+            })
+        );
+        assert_eq!(
+            sponge.absorb(2, [BlsScalar::one(); 2]),
+            Err(Error::IOPatternViolation)
+        );
+        assert_eq!(sponge.squeeze(1), Err(Error::IOPatternViolation));
+        assert_eq!(sponge.clone().finish(), Err(Error::IOPatternViolation));
+        sponge.zeroize();
+        assert_eq!(sponge.finish(), Err(Error::IOPatternViolation));
+    }
+}
+
+#[test]
+fn explicit_zeroization_is_terminal() {
+    for progress in 0..3 {
+        let mut sponge = Sponge::start(
+            Rotate::new(),
+            vec![Call::Absorb(1), Call::Squeeze(1)],
+            0,
+        )
+        .unwrap();
+        if progress >= 1 {
+            sponge.absorb(1, [BlsScalar::one()]).unwrap();
+        }
+        if progress == 2 {
+            sponge.squeeze(1).unwrap();
+        }
+        sponge.zeroize();
+        assert_eq!(
+            sponge.absorb(1, [BlsScalar::one()]),
+            Err(Error::IOPatternViolation)
+        );
+        assert_eq!(sponge.squeeze(1), Err(Error::IOPatternViolation));
+        assert_eq!(sponge.finish(), Err(Error::IOPatternViolation));
+    }
+}
+
+#[test]
+fn unsupported_widths_are_rejected() {
+    // Mechanics-only backend; invalid widths must reject before invoking it.
+    struct Minimal;
+    impl<const N: usize> Safe<BlsScalar, N> for Minimal {
+        fn tag(&mut self, _: &[u8]) -> BlsScalar {
+            assert!(N >= 2);
+            BlsScalar::zero()
+        }
+        fn add(&mut self, a: &BlsScalar, b: &BlsScalar) -> BlsScalar {
+            a + b
+        }
+        fn permute(&mut self, _: &mut [BlsScalar; N]) {}
+    }
+    let pattern = vec![Call::Absorb(1), Call::Squeeze(1)];
+    assert_eq!(
+        Sponge::<_, BlsScalar, 0>::start(Minimal, pattern.clone(), 0)
+            .unwrap_err(),
+        Error::InvalidIOPattern
+    );
+    assert_eq!(
+        Sponge::<_, BlsScalar, 1>::start(Minimal, pattern.clone(), 0)
+            .unwrap_err(),
+        Error::InvalidIOPattern
+    );
+    let mut sponge =
+        Sponge::<_, BlsScalar, 2>::start(Minimal, pattern, 0).unwrap();
+    sponge.absorb(1, [BlsScalar::one()]).unwrap();
+    sponge.squeeze(1).unwrap();
+    assert_eq!(sponge.finish().unwrap(), [BlsScalar::one()]);
+}
+
+#[test]
+fn debug_is_redacted() {
+    let mut sponge = Sponge::start(
+        Rotate::new(),
+        vec![Call::Absorb(1), Call::Squeeze(1)],
+        0,
+    )
+    .unwrap();
+    sponge.absorb(1, [BlsScalar::from(77665544)]).unwrap();
+    sponge.squeeze(1).unwrap();
+    assert_eq!(
+        format!("{sponge:?}"),
+        "Sponge { width: 7, io_count: 2, failed: false, .. }"
+    );
 }
 
 #[test]
@@ -122,59 +239,6 @@ fn sponge() -> Result<(), Error> {
             BlsScalar::from(11),
         ]
     );
-
-    Ok(())
-}
-
-#[test]
-fn absorb_fails() -> Result<(), Error> {
-    // pick a domain-separator
-    let domain_sep = 0;
-
-    // build the io-pattern
-    let iopattern = vec![Call::Absorb(6), Call::Squeeze(1)];
-
-    // start the sponge
-    let input = [BlsScalar::one(); 10];
-    let mut sponge = Sponge::start(Rotate::new(), iopattern, domain_sep)?;
-
-    // input-slice smaller than len
-    let error = sponge.clone().absorb(6, &input[..4]).unwrap_err();
-    assert_eq!(error, Error::TooFewInputElements);
-
-    // absorb len is not as io-pattern specifies
-    let error = sponge.clone().absorb(4, &input[..4]).unwrap_err();
-    assert_eq!(error, Error::IOPatternViolation);
-
-    // unexpected call to squeeze
-    let error = sponge.squeeze(1).unwrap_err();
-    assert_eq!(error, Error::IOPatternViolation);
-
-    Ok(())
-}
-
-#[test]
-fn squeeze_fails() -> Result<(), Error> {
-    // pick a domain-separator
-    let domain_sep = 0;
-
-    // build the io-pattern
-    let iopattern = vec![Call::Absorb(6), Call::Squeeze(1)];
-
-    // start the sponge
-    let input = [BlsScalar::one(); 10];
-    let mut sponge = Sponge::start(Rotate::new(), iopattern, domain_sep)?;
-
-    // absorb 6 elements as specified by the io-pattern
-    sponge.absorb(6, &input[..6])?;
-
-    // squeeze 4 elements when io-pattern expects 1
-    let error = sponge.clone().squeeze(4).unwrap_err();
-    assert_eq!(error, Error::IOPatternViolation);
-
-    // unexpected call to absorb when io-pattern expects squeeze
-    let error = sponge.absorb(1, &input).unwrap_err();
-    assert_eq!(error, Error::IOPatternViolation);
 
     Ok(())
 }

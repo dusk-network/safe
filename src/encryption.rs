@@ -37,7 +37,10 @@ pub trait Encryption<T, const W: usize> {
     ///
     /// # Returns
     ///
-    /// Returns `true` if `lhs` is equal to `rhs`, otherwise `false`.
+    /// Native implementations must compare in constant time and return `true`
+    /// exactly when `lhs` equals `rhs`. Circuit implementations may constrain
+    /// equality and return `true`; authentication then depends on successfully
+    /// proving and verifying those constraints, not on this boolean alone.
     fn is_equal(&mut self, lhs: &T, rhs: &T) -> bool;
 }
 

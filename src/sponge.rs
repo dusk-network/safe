@@ -5,6 +5,7 @@
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use alloc::vec::Vec;
+use core::fmt;
 
 use zeroize::Zeroize;
 
@@ -14,6 +15,15 @@ use crate::{Call, Error, tag_input};
 ///
 /// Note: The trait's specific implementation of addition enables usage within
 /// zero-knowledge circuits.
+///
+/// Implementers supply the security boundary: `T::default()` must represent
+/// the additive identity (or override `initialized_state`), and `add` must be
+/// field addition. The permutation and pattern-to-field hash must meet the
+/// security requirements of the chosen SAFE instantiation. Field cardinality,
+/// not the Rust representation size, determines capacity security. Native
+/// secret-dependent operations must be constant-time; circuit implementations
+/// must constrain their results. Any secrets retained by the backend require
+/// its own cleanup: sponge zeroization does not erase the backend.
 pub trait Safe<T, const W: usize>
 where
     T: Default + Copy + Zeroize,
@@ -64,8 +74,10 @@ where
 /// Struct that implements the Sponge API over field elements.
 ///
 /// The capacity is fixed to one field element and the rate are `W - 1` field
-/// elements.
-#[derive(Debug, Clone, PartialEq)]
+/// elements. Widths below two are rejected. Operation errors and explicit
+/// zeroization permanently invalidate the instance, including subsequent
+/// clones of that failed instance; construct a new sponge to start again.
+#[derive(Clone, PartialEq)]
 pub struct Sponge<S, T, const W: usize>
 where
     S: Safe<T, W>,
@@ -76,6 +88,7 @@ where
     pos_absorb: usize,
     pos_squeeze: usize,
     io_count: usize,
+    failed: bool,
     iopattern: Vec<Call>,
     domain_sep: u64,
     pub(crate) output: Vec<T>,
@@ -105,12 +118,15 @@ where
     /// # Returns
     ///
     /// A result containing the initialized Sponge on success, or an `Error` if
-    /// the IO-pattern is invalid.
+    /// the IO-pattern is invalid or the width is less than two.
     pub fn start(
         safe: S,
         iopattern: impl Into<Vec<Call>>,
         domain_sep: u64,
     ) -> Result<Self, Error> {
+        if W < 2 {
+            return Err(Error::InvalidIOPattern);
+        }
         // Compute the tag and initialize the state.
         // Note: This will return an error if the IO-pattern is invalid.
         let iopattern: Vec<Call> = iopattern.into();
@@ -124,6 +140,7 @@ where
             pos_absorb: 0,
             pos_squeeze: 0,
             io_count: 0,
+            failed: false,
             iopattern,
             domain_sep,
             output: Vec::new(),
@@ -138,7 +155,7 @@ where
     /// A result containing the output vector on success, or an `Error` if the
     /// IO-pattern wasn't followed.
     pub fn finish(mut self) -> Result<Vec<T>, Error> {
-        let ret = if self.io_count == self.iopattern.len() {
+        let ret = if !self.failed && self.io_count == self.iopattern.len() {
             Ok(core::mem::take(&mut self.output))
         } else {
             Err(Error::IOPatternViolation)
@@ -166,6 +183,9 @@ where
         len: usize,
         input: impl AsRef<[T]>,
     ) -> Result<(), Error> {
+        if self.failed {
+            return Err(Error::IOPatternViolation);
+        }
         // Check that input yields enough elements
         if input.as_ref().len() < len {
             self.zeroize();
@@ -221,6 +241,9 @@ where
     /// A result indicating success if the operation completes, or an `Error`
     /// if the IO-pattern wasn't followed.
     pub fn squeeze(&mut self, len: usize) -> Result<(), Error> {
+        if self.failed {
+            return Err(Error::IOPatternViolation);
+        }
         // Check that the IO-pattern is followed
         match self.iopattern.get(self.io_count) {
             // only proceed if we expect a call to squeeze with the correct
@@ -253,6 +276,20 @@ where
     }
 }
 
+impl<S, T, const W: usize> fmt::Debug for Sponge<S, T, W>
+where
+    S: Safe<T, W>,
+    T: Default + Copy + Zeroize,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Sponge")
+            .field("width", &W)
+            .field("io_count", &self.io_count)
+            .field("failed", &self.failed)
+            .finish_non_exhaustive()
+    }
+}
+
 impl<S, T, const W: usize> Drop for Sponge<S, T, W>
 where
     S: Safe<T, W>,
@@ -268,7 +305,9 @@ where
     S: Safe<T, W>,
     T: Default + Copy + Zeroize,
 {
+    /// Erase the state and output, permanently invalidating this instance.
     fn zeroize(&mut self) {
+        self.failed = true;
         self.state.zeroize();
         self.pos_absorb.zeroize();
         self.pos_squeeze.zeroize();
