@@ -76,6 +76,20 @@ Every operation error and explicit zeroization permanently invalidates that spon
 
 *Note that we do not set the `pos_absorb` to the rate as we do with the `pos_squeeze` in the call to `absorb`, this is because we may want the state to absorb at the same positions that have been squeezed.*
 
+### Output storage and resource limits
+
+Output storage grows only for actual squeeze requests, not for the entire declared
+pattern at construction. Growth allocates a replacement, copies live output, and
+zeroizes the old allocation before releasing it; the same rule protects continued
+clones. Failed output-growth allocations return `InvalidIOPattern` and permanently
+invalidate the sponge; other allocations retain the platform's allocation-failure
+behavior. Callers must bound pattern sizes and output requests to their own
+memory budget: allocator success does not guarantee that an operating system can
+back an arbitrarily large allocation. Growth temporarily keeps old and new buffers
+live. Encryption/decryption temporary vectors are zeroized on error or unwinding;
+returned vectors are owned by the caller. This does not erase copies retained by a
+backend, compiler, or a process that aborts.
+
 ## Example
 
 ```rust

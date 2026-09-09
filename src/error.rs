@@ -19,7 +19,8 @@ pub enum Error {
     ///
     /// Consecutive calls of the same kind must also aggregate to less than
     /// 2^31 elements. Widths below two cannot form a usable sponge.
-    /// Also returned when an empty ciphertext cannot form a valid IO-pattern.
+    /// Also returned if requested output storage cannot be represented or
+    /// allocated, or an empty ciphertext cannot form a valid IO-pattern.
     InvalidIOPattern,
 
     /// This error occurs when the input elements provided to the

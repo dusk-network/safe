@@ -178,6 +178,7 @@ where
     ///
     /// A result indicating success if the operation completes, or an `Error`
     /// if the IO-pattern wasn't followed.
+    #[inline]
     pub fn absorb(
         &mut self,
         len: usize,
@@ -239,7 +240,11 @@ where
     /// # Returns
     ///
     /// A result indicating success if the operation completes, or an `Error`
-    /// if the IO-pattern wasn't followed.
+    /// if the IO-pattern wasn't followed. Unrepresentable or unavailable
+    /// output storage returns [`Error::InvalidIOPattern`] and invalidates the
+    /// sponge. Callers must bound requested output to their memory budget.
+    // Specialize small, constant-length calls without inlining allocation.
+    #[inline(always)]
     pub fn squeeze(&mut self, len: usize) -> Result<(), Error> {
         if self.failed {
             return Err(Error::IOPatternViolation);
@@ -253,6 +258,13 @@ where
                 self.zeroize();
                 return Err(Error::IOPatternViolation);
             }
+        }
+
+        if len > self.output.capacity() - self.output.len()
+            && self.grow_output(len).is_err()
+        {
+            self.zeroize();
+            return Err(Error::InvalidIOPattern);
         }
 
         // Squeeze 'len` field elements from the state, calling [`permute`] when
@@ -272,6 +284,34 @@ where
         // Increase the position for the IO-pattern
         self.io_count += 1;
 
+        Ok(())
+    }
+
+    // Never let Vec reallocate live secret output: allocator growth may free
+    // the old allocation without wiping it. Grow only for actual squeeze
+    // requests, not arbitrarily large future lengths in pattern metadata.
+    // Keep allocation and wiping out of the repeated-call fast path.
+    #[inline(never)]
+    fn grow_output(&mut self, len: usize) -> Result<(), Error> {
+        let required = self
+            .output
+            .len()
+            .checked_add(len)
+            .ok_or(Error::InvalidIOPattern)?;
+        // No spare capacity is useful after the final operation. Keep
+        // amortized growth for streaming, but not for a final AE tag.
+        let capacity = if self.io_count + 1 == self.iopattern.len() {
+            required
+        } else {
+            required.max(self.output.capacity().saturating_mul(2))
+        };
+        let mut replacement = Vec::new();
+        replacement
+            .try_reserve(capacity)
+            .map_err(|_| Error::InvalidIOPattern)?;
+        replacement.extend_from_slice(&self.output);
+        self.output.zeroize();
+        self.output = replacement;
         Ok(())
     }
 }
@@ -312,5 +352,144 @@ where
         self.pos_absorb.zeroize();
         self.pos_squeeze.zeroize();
         self.output.zeroize();
+    }
+}
+
+#[cfg(test)]
+mod storage_tests {
+    // Allocation-boundary tests; the integer/identity backend is NOT
+    // cryptographic.
+    extern crate std;
+    use alloc::vec;
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::cell::Cell;
+    use std::ptr;
+
+    use super::*;
+
+    std::thread_local! {
+        // Watch one initialized u64, never uninitialized capacity or freed memory.
+        static WATCH: Cell<usize> = const { Cell::new(0) };
+        static WIPED: Cell<bool> = const { Cell::new(false) };
+        static FAIL_NEXT: Cell<bool> = const { Cell::new(false) };
+        static FAIL_AFTER_SUBTRACT: Cell<bool> = const { Cell::new(false) };
+    }
+    struct Allocator;
+    fn observe(ptr: *mut u8) {
+        let _ = WATCH.try_with(|watch| {
+            let address = watch.get();
+            if address != 0 && address == ptr as usize {
+                // SAFETY: watch() registers an initialized u64; this is the
+                // matching allocation's base, before it is freed/reallocated.
+                WIPED.set(unsafe { *ptr.cast::<u64>() == 0 });
+                watch.set(0);
+            }
+        });
+    }
+    unsafe impl GlobalAlloc for Allocator {
+        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            if FAIL_NEXT
+                .try_with(|flag| flag.replace(false))
+                .unwrap_or(false)
+            {
+                return ptr::null_mut();
+            }
+            unsafe { System.alloc(layout) }
+        }
+        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+            observe(ptr);
+            unsafe { System.dealloc(ptr, layout) }
+        }
+        unsafe fn realloc(
+            &self,
+            ptr: *mut u8,
+            layout: Layout,
+            size: usize,
+        ) -> *mut u8 {
+            observe(ptr);
+            unsafe { System.realloc(ptr, layout, size) }
+        }
+    }
+    #[global_allocator]
+    static ALLOCATOR: Allocator = Allocator;
+
+    #[derive(Clone)]
+    struct Identity;
+    impl Safe<u64, 4> for Identity {
+        fn tag(&mut self, _: &[u8]) -> u64 {
+            0
+        }
+        fn permute(&mut self, _: &mut [u64; 4]) {}
+        fn add(&mut self, a: &u64, b: &u64) -> u64 {
+            a.wrapping_add(*b)
+        }
+    }
+    fn watch(value: &u64) {
+        assert_ne!(*value, 0);
+        WIPED.set(false);
+        WATCH.set(value as *const u64 as usize);
+    }
+    #[test]
+    fn growth_wipes_old_output_including_clones() {
+        let mut original = Sponge::start(
+            Identity,
+            vec![Call::Absorb(1), Call::Squeeze(1), Call::Squeeze(4)],
+            0,
+        )
+        .unwrap();
+        original.absorb(1, [99]).unwrap();
+        original.squeeze(1).unwrap();
+        let cloned = original.clone();
+        for mut sponge in [original, cloned] {
+            watch(&sponge.output[0]);
+            sponge.squeeze(4).unwrap();
+            assert_eq!(
+                sponge.output.capacity(),
+                5,
+                "final squeeze needs no spare capacity"
+            );
+            assert!(
+                WIPED.get(),
+                "old output must be wiped before allocator release"
+            );
+            assert_eq!(sponge.finish().unwrap(), [99, 0, 0, 99, 0]);
+        }
+    }
+    #[test]
+    fn allocation_failure_is_terminal() {
+        let mut sponge =
+            Sponge::start(Identity, vec![Call::Absorb(1), Call::Squeeze(1)], 0)
+                .unwrap();
+        sponge.absorb(1, [99]).unwrap();
+        FAIL_NEXT.set(true);
+        assert_eq!(sponge.squeeze(1), Err(Error::InvalidIOPattern));
+        assert!(!FAIL_NEXT.get());
+        assert_eq!(sponge.squeeze(1), Err(Error::IOPatternViolation));
+        assert_eq!(sponge.finish(), Err(Error::IOPatternViolation));
+    }
+    #[cfg(feature = "encryption")]
+    impl crate::Encryption<u64, 4> for Identity {
+        fn subtract(&mut self, a: &u64, b: &u64) -> u64 {
+            if FAIL_AFTER_SUBTRACT.replace(false) {
+                watch(b);
+                FAIL_NEXT.set(true);
+            }
+            a.wrapping_sub(*b)
+        }
+        fn is_equal(&mut self, a: &u64, b: &u64) -> bool {
+            a == b
+        }
+    }
+    #[cfg(feature = "encryption")]
+    #[test]
+    fn late_allocation_failure_wipes_decrypted_message() {
+        FAIL_AFTER_SUBTRACT.set(true);
+        let result = crate::decrypt(Identity, 0u64, [77u64; 5], &[7, 8], &9);
+        assert!(!FAIL_NEXT.get());
+        assert_eq!(result, Err(Error::InvalidIOPattern));
+        assert!(
+            WIPED.get(),
+            "plaintext must be wiped on the late squeeze error"
+        );
     }
 }

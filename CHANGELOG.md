@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Wipe old output allocations before growth, including when continuing cloned sponges [#37]
+- Return an error and invalidate the sponge when output allocation fails [#37]
+- Wipe encryption/decryption temporary vectors on error and unwinding [#37]
 - Permanently invalidate sponges after operation errors or explicit zeroization [#37]
 - Reject IO patterns whose aggregated runs exceed the 31-bit encoding limit [#37]
 - Reject sponge widths below two at construction [#37]
@@ -18,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Encode checked IO-pattern runs directly without an intermediate word vector [#37]
+- Specialize small squeeze calls while keeping allocation and wiping out of line [#37]
 - Simplify sponge finalization and IO-pattern validation
 - Raise the MSRV to Rust 1.96.1 [#32]
 
