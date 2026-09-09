@@ -71,39 +71,30 @@ fn tag_input(
     // ABSORB_MASK = 0b10000000_00000000_00000000_00000000
     const ABSORB_MASK: u32 = 0x8000_0000;
 
-    // we know that the first call needs to be to absorb so we can initialize
-    // the vec
-    let mut input_u32 = Vec::new();
-    input_u32.push(ABSORB_MASK);
+    let mut input = Vec::new();
+    // Validation guarantees that the first operation is absorb.
+    let mut kind = ABSORB_MASK;
+    let mut length = 0u32;
 
-    // Aggregate and encode calls to absorb and squeeze
-    iopattern.as_ref().iter().for_each(|call| {
-        // get a mutable ref to the previously encoded call
-        // Note: This is safe since we initialized the vector with one element
-        let l = input_u32.len();
-        let prev = &mut input_u32[l - 1];
-        match call {
-            // if both this and the previous calls are to absorb, aggregate them
-            Call::Absorb(len) if *prev & ABSORB_MASK != 0 => {
-                *prev += *len as u32
-            }
-            // else add an encoded call to absorb
-            Call::Absorb(len) => input_u32.push(ABSORB_MASK + *len as u32),
-            // if both this and the previous calls are to squeeze, aggregate
-            // them
-            Call::Squeeze(len) if *prev & ABSORB_MASK == 0 => {
-                *prev += *len as u32
-            }
-            // else add an encoded call to squeeze
-            Call::Squeeze(len) => input_u32.push(*len as u32),
+    // Aggregate lengths separately from the operation bit. Every encoded run,
+    // not just every individual call, must fit in the low 31 bits. Emit each
+    // completed run directly instead of updating an intermediate word vector.
+    for call in iopattern.as_ref() {
+        let (next_kind, len) = match call {
+            Call::Absorb(len) => (ABSORB_MASK, *len as u32),
+            Call::Squeeze(len) => (0, *len as u32),
+        };
+        if next_kind != kind {
+            input.extend((kind | length).to_be_bytes());
+            kind = next_kind;
+            length = 0;
         }
-    });
-
-    // Convert hash input to an array of u8, using big endian conversion
-    let mut input: Vec<u8> = input_u32
-        .iter()
-        .flat_map(|u32_int| u32_int.to_be_bytes().into_iter())
-        .collect();
+        length = length
+            .checked_add(len)
+            .filter(|length| *length < ABSORB_MASK)
+            .ok_or(Error::InvalidIOPattern)?;
+    }
+    input.extend((kind | length).to_be_bytes());
 
     // Add the domain separator to the hash input
     input.extend(domain_sep.to_be_bytes());
@@ -151,6 +142,66 @@ mod tests {
     use std::vec;
 
     use super::*;
+
+    #[test]
+    fn aggregate_lengths_fit_the_encoding() {
+        const MAX: usize = (1 << 31) - 1;
+        for pattern in [
+            vec![Call::Absorb(MAX), Call::Absorb(1), Call::Squeeze(1)],
+            vec![Call::Absorb(1), Call::Squeeze(MAX), Call::Squeeze(1)],
+            vec![
+                Call::Absorb(1),
+                Call::Squeeze(MAX),
+                Call::Squeeze(2),
+                Call::Absorb(1),
+                Call::Squeeze(1),
+            ],
+            vec![
+                Call::Absorb(1),
+                Call::Squeeze(MAX),
+                Call::Squeeze(1),
+                Call::Absorb(2),
+                Call::Squeeze(1),
+            ],
+        ] {
+            assert_eq!(tag_input(pattern, 42), Err(Error::InvalidIOPattern));
+        }
+        let pattern = [
+            Call::Absorb(MAX - 1),
+            Call::Absorb(1),
+            Call::Squeeze(MAX - 1),
+            Call::Squeeze(1),
+        ];
+        let mut expected = vec![0xff, 0xff, 0xff, 0xff, 0x7f, 0xff, 0xff, 0xff];
+        expected.extend(42u64.to_be_bytes());
+        assert_eq!(tag_input(pattern, 42).unwrap(), expected);
+        assert_eq!(
+            tag_input([Call::Absorb(4), Call::Absorb(1), Call::Squeeze(3)], 42)
+                .unwrap(),
+            [0x80, 0, 0, 5, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 42]
+        );
+        // Switching back to absorb must flush the squeeze run and reset its
+        // length; this literal is independent of the encoder implementation.
+        assert_eq!(
+            tag_input(
+                [
+                    Call::Absorb(2),
+                    Call::Absorb(3),
+                    Call::Squeeze(4),
+                    Call::Squeeze(5),
+                    Call::Absorb(6),
+                    Call::Squeeze(7),
+                    Call::Squeeze(8),
+                ],
+                42,
+            )
+            .unwrap(),
+            [
+                0x80, 0, 0, 5, 0, 0, 0, 9, 0x80, 0, 0, 6, 0, 0, 0, 15, 0, 0, 0,
+                0, 0, 0, 0, 42,
+            ]
+        );
+    }
 
     #[test]
     fn test_validate_io_pattern() {
@@ -243,13 +294,6 @@ mod tests {
         );
 
         // check patterns whose aggregate are equal
-        let pattern1 = vec![Call::Absorb(2), Call::Squeeze(1)];
-        let pattern2 = vec![Call::Absorb(2), Call::Squeeze(1)];
-        assert_eq!(
-            tag_input(&pattern1, domain_sep)?,
-            tag_input(&pattern2, domain_sep)?
-        );
-
         let pattern1 = vec![Call::Absorb(1), Call::Absorb(1), Call::Squeeze(1)];
         let pattern2 = vec![Call::Absorb(2), Call::Squeeze(1)];
         assert_eq!(

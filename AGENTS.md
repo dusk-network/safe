@@ -41,7 +41,7 @@ The core abstraction is the **SAFE (Sponge API for Field Elements)** framework:
 Behind the `encryption` feature:
 
 - **`Encryption<T, W>` trait** — extends `Safe` with subtraction and equality (also circuit-compatible).
-- **`encrypt` / `decrypt`** — authenticated encryption using the sponge. Absorbs a shared secret and nonce, then XORs the message with squeezed keystream. A final squeeze element serves as an authentication tag.
+- **`encrypt` / `decrypt`** — authenticated encryption using the sponge. Absorbs a shared secret and nonce, then uses field addition/subtraction to combine the message and squeezed keystream. A final squeeze element serves as an authentication tag.
 
 ### Key Dependencies
 

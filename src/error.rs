@@ -17,7 +17,10 @@ pub enum Error {
     /// - It doesn't end with a call to absorb
     /// - Every call to absorb or squeeze has a length between 0 < len < 2^31
     ///
-    /// Also returned when an empty ciphertext cannot form a valid IO-pattern.
+    /// Consecutive calls of the same kind must also aggregate to less than
+    /// 2^31 elements. Widths below two cannot form a usable sponge.
+    /// Also returned if requested output storage cannot be represented or
+    /// allocated, or an empty ciphertext cannot form a valid IO-pattern.
     InvalidIOPattern,
 
     /// This error occurs when the input elements provided to the
