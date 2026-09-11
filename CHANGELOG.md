@@ -20,8 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Encode checked IO-pattern runs directly without an intermediate word vector [#37]
-- Specialize small squeeze calls while keeping allocation and wiping out of line [#37]
 - Simplify sponge finalization and IO-pattern validation
 - Raise the MSRV to Rust 1.96.1 [#32]
 

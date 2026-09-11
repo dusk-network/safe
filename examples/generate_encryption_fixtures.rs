@@ -9,6 +9,10 @@
 //!
 //! Original vectors used Python integer arithmetic and hashlib:
 //! https://github.com/dusk-network/safe/blob/d4802e77f65e0163fcfdf7d54275e572b718724c/tests/fixtures/generate.py
+//! Retained by the archival (non-release) tag
+//! `provenance/encryption-fixtures-python`.
+//! Source SHA-256:
+//! f623540c62aa17997b53a8eaa82b19423075e1662ecfae3520c3989a8c9bd075
 //! This reference calls no dusk-safe code, but shares field arithmetic/hashing
 //! with the Rust tests. The hash-expanded backend is NOT a cryptographic
 //! permutation. Fixed parameters: width 7, key [7, 8], nonce 9, domain 2^31,

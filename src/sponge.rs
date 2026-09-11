@@ -477,8 +477,9 @@ mod storage_tests {
             let len = sponge.output.capacity().max(1);
             sponge.iopattern[sponge.io_count] = Call::Squeeze(len);
             FAIL_NEXT.set(true);
-            assert_eq!(sponge.squeeze(len), Err(Error::InvalidIOPattern));
-            assert!(!FAIL_NEXT.get());
+            let result = sponge.squeeze(len);
+            assert!(!FAIL_NEXT.replace(false));
+            assert_eq!(result, Err(Error::InvalidIOPattern));
             assert!(sponge.output.is_empty());
             if buffered {
                 // Inspect now, before finish/Drop could mask missed error
@@ -526,7 +527,7 @@ mod storage_tests {
     fn late_allocation_failure_wipes_decrypted_message() {
         FAIL_AFTER_SUBTRACT.set(true);
         let result = crate::decrypt(Identity, 0u64, [77u64; 5], &[7, 8], &9);
-        assert!(!FAIL_NEXT.get());
+        assert!(!FAIL_NEXT.replace(false));
         assert_eq!(result, Err(Error::InvalidIOPattern));
         assert!(
             WIPED.get(),
