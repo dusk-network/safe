@@ -6,7 +6,7 @@
 
 use alloc::vec::Vec;
 
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::{Call, Error, Safe, Sponge};
 
@@ -37,7 +37,10 @@ pub trait Encryption<T, const W: usize> {
     ///
     /// # Returns
     ///
-    /// Returns `true` if `lhs` is equal to `rhs`, otherwise `false`.
+    /// Native implementations must compare in constant time and return `true`
+    /// exactly when `lhs` equals `rhs`. Circuit implementations may constrain
+    /// equality and return `true`; authentication then depends on successfully
+    /// proving and verifying those constraints, not on this boolean alone.
     fn is_equal(&mut self, lhs: &T, rhs: &T) -> bool;
 }
 
@@ -112,7 +115,7 @@ where
 
     // encryption cipher is the sponge.output with the message elements added
     // to the first message_len elements
-    let mut cipher = Vec::from(&sponge.output[..]);
+    let mut cipher = Zeroizing::new(Vec::from(&sponge.output[..]));
     for i in 0..message_len {
         cipher[i] = sponge.safe.add(&cipher[i], &message[i]);
     }
@@ -123,16 +126,9 @@ where
     }
 
     // finish the sponge, erase cipher upon error
-    match sponge.finish() {
-        Ok(mut output) => {
-            output.zeroize();
-            Ok(cipher)
-        }
-        Err(e) => {
-            cipher.zeroize();
-            Err(e)
-        }
-    }
+    let mut output = sponge.finish()?;
+    output.zeroize();
+    Ok(core::mem::take(&mut *cipher))
 }
 
 /// Decrypts a cipher-text using a shared secret and nonce, and returns the
@@ -176,13 +172,13 @@ where
     )?;
 
     // construct the message by subtracting sponge.output from the cipher
-    let mut message = Vec::from(&sponge.output[..]);
+    let mut message = Zeroizing::new(Vec::from(&sponge.output[..]));
     for i in 0..message_len {
         message[i] = sponge.safe.subtract(&cipher[i], &message[i]);
     }
 
     // absorb the obtained message
-    sponge.absorb(message_len, &message)?;
+    sponge.absorb(message_len, message.as_slice())?;
 
     // squeeze 1 element
     sponge.squeeze(1)?;
@@ -191,22 +187,14 @@ where
     // of the sponge output
     let s = sponge.output[message_len];
     if !sponge.safe.is_equal(&s, &cipher[message_len]) {
-        message.zeroize();
         sponge.zeroize();
         return Err(Error::DecryptionFailed);
     };
 
     // finish sponge, erase decrypted message upon error
-    match sponge.finish() {
-        Ok(mut output) => {
-            output.zeroize();
-            Ok(message)
-        }
-        Err(e) => {
-            message.zeroize();
-            Err(e)
-        }
-    }
+    let mut output = sponge.finish()?;
+    output.zeroize();
+    Ok(core::mem::take(&mut *message))
 }
 
 /// Defines the input-output pattern for the encryption and decryption.

@@ -18,6 +18,7 @@ check: ## Type-check
 test: ## Run tests in debug and release profiles
 	@cargo test --features=encryption
 	@cargo test --release --features=encryption
+	@cargo check --manifest-path tests/zeroize-compat/Cargo.toml
 
 no-std: ## Verify no_std compatibility on bare-metal target
 	@rustup target add thumbv6m-none-eabi 2>/dev/null || true

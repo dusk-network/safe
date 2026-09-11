@@ -1,0 +1,12 @@
+[package]
+name = "safe-zeroize-compat"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+dusk-safe = { path = "../..", features = ["encryption"] }
+zeroize = "=1.5.4"
+
+# Keep SAFE's dev-dependencies out of this consumer's resolution.
+[workspace]
