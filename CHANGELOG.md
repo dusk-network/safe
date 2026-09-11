@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Simplify sponge finalization and IO-pattern validation
 - Raise the MSRV to Rust 1.96.1 [#32]
 
+### Removed
+
+- Remove `PartialEq` from `Sponge` [#39]
+
 ## [0.3.0] - 2025-02-06
 
 ### Changed
@@ -65,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Add documentation
 
 <!-- ISSUES -->
+[#39]: https://github.com/dusk-network/safe/issues/39
 [#37]: https://github.com/dusk-network/safe/issues/37
 [#35]: https://github.com/dusk-network/safe/issues/35
 [#32]: https://github.com/dusk-network/safe/issues/32
