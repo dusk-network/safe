@@ -77,7 +77,28 @@ where
 /// elements. Widths below two are rejected. Operation errors and explicit
 /// zeroization permanently invalidate the instance, including subsequent
 /// clones of that failed instance; construct a new sponge to start again.
-#[derive(Clone, PartialEq)]
+///
+/// Whole-sponge equality is intentionally unsupported: ordinary comparisons
+/// of secret state and buffered output have no constant-time guarantee.
+/// This is separate from a backend's authentication equality check.
+/// When upgrading, remove whole-sponge comparisons and `Sponge: PartialEq`
+/// requirements.
+///
+/// ```compile_fail,E0369
+/// use dusk_safe::{Safe, Sponge};
+///
+/// fn compare<S, T, const W: usize>(
+///     left: &Sponge<S, T, W>,
+///     right: &Sponge<S, T, W>,
+/// ) -> bool
+/// where
+///     S: Safe<T, W> + PartialEq,
+///     T: Default + Copy + zeroize::Zeroize + PartialEq,
+/// {
+///     left == right
+/// }
+/// ```
+#[derive(Clone)]
 pub struct Sponge<S, T, const W: usize>
 where
     S: Safe<T, W>,
@@ -90,7 +111,6 @@ where
     io_count: usize,
     failed: bool,
     iopattern: Vec<Call>,
-    domain_sep: u64,
     pub(crate) output: Vec<T>,
 }
 
@@ -142,7 +162,6 @@ where
             io_count: 0,
             failed: false,
             iopattern,
-            domain_sep,
             output: Vec::new(),
         })
     }
