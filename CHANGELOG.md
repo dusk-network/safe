@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Read the `Sponge::absorb` input through a single `as_ref` call
 - Wipe old output allocations before growth, including when continuing cloned sponges [#37]
 - Return an error and invalidate the sponge when output allocation fails [#37]
 - Wipe encryption/decryption temporary vectors on error and unwinding [#37]

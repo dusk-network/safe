@@ -4,6 +4,8 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use core::cell::Cell;
+
 use dusk_bls12_381::BlsScalar;
 use dusk_safe::{Call, Error, Safe, Sponge};
 use zeroize::Zeroize;
@@ -39,6 +41,23 @@ impl Rotate {
     pub fn new() -> Self {
         Self()
     }
+}
+
+#[test]
+fn absorb_uses_the_validated_slice() {
+    struct Input<'a>(Cell<&'a [BlsScalar]>);
+    impl AsRef<[BlsScalar]> for Input<'_> {
+        fn as_ref(&self) -> &[BlsScalar] {
+            self.0.replace(&[])
+        }
+    }
+    let input = [BlsScalar::from(7), BlsScalar::from(9)];
+    let mut sponge =
+        Sponge::start(Rotate::new(), [Call::Absorb(2), Call::Squeeze(1)], 0)
+            .unwrap();
+    sponge.absorb(2, Input(Cell::new(&input))).unwrap();
+    sponge.squeeze(1).unwrap();
+    assert_eq!(sponge.finish().unwrap(), [input[1]]);
 }
 
 #[test]
