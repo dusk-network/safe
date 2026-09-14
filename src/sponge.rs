@@ -207,7 +207,8 @@ where
             return Err(Error::IOPatternViolation);
         }
         // Check that input yields enough elements
-        if input.as_ref().len() < len {
+        let input = input.as_ref();
+        if input.len() < len {
             self.zeroize();
             return Err(Error::TooFewInputElements);
         }
@@ -224,7 +225,7 @@ where
 
         // Absorb `len` elements into the state, calling [`permute`] when the
         // absorb-position reached the rate.
-        for element in input.as_ref().iter().take(len) {
+        for element in input.iter().take(len) {
             if self.pos_absorb == Self::RATE {
                 self.safe.permute(&mut self.state);
 
