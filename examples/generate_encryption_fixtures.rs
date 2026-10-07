@@ -31,7 +31,7 @@ fn permute(state: &mut [BlsScalar; RATE + 1]) {
     let mut bytes: Vec<_> = state.iter().flat_map(|s| s.to_bytes()).collect();
     for (i, value) in state.iter_mut().enumerate() {
         bytes.push(i as u8);
-        *value = BlsScalar::hash_to_scalar(&bytes);
+        *value = BlsScalar::hash_to_scalar(None, &bytes);
         bytes.pop();
     }
 }
@@ -44,7 +44,7 @@ fn reference_cipher(n: usize) -> Vec<BlsScalar> {
         .collect();
     tag.extend_from_slice(&(1u64 << 31).to_be_bytes());
     let mut state = [BlsScalar::zero(); RATE + 1];
-    state[0] = BlsScalar::hash_to_scalar(&tag);
+    state[0] = BlsScalar::hash_to_scalar(None, &tag);
     for (i, value) in [7u64, 8, 9].into_iter().enumerate() {
         state[i + 1] = BlsScalar::from(value);
     }

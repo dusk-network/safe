@@ -119,7 +119,7 @@ impl Safe<BlsScalar, W> for Rotate {
     // Define the hasher used to generate the tag from the encoding of the
     // io-pattern and domain-separator.
     fn tag(&mut self, input: &[u8]) -> BlsScalar {
-        BlsScalar::hash_to_scalar(input)
+        BlsScalar::hash_to_scalar(None, input)
     }
 
     fn add(&mut self, right: &BlsScalar, left: &BlsScalar) -> BlsScalar {
