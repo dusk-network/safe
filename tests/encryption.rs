@@ -28,14 +28,14 @@ impl Safe<BlsScalar, W> for HashState {
 
         state.iter_mut().enumerate().for_each(|(i, s)| {
             state_bytes.push(i as u8);
-            *s = BlsScalar::hash_to_scalar(&state_bytes[..]);
+            *s = BlsScalar::hash_to_scalar(None, &state_bytes[..]);
             state_bytes.pop();
         });
     }
 
     // Bind the mechanics fixture to the encoded pattern and domain.
     fn tag(&mut self, input: &[u8]) -> BlsScalar {
-        BlsScalar::hash_to_scalar(input)
+        BlsScalar::hash_to_scalar(None, input)
     }
 
     fn add(&mut self, right: &BlsScalar, left: &BlsScalar) -> BlsScalar {
