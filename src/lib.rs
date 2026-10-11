@@ -282,6 +282,23 @@ mod tests {
     }
 
     #[test]
+    fn io_pattern_length_bound() {
+        const MAX: usize = (1 << 31) - 1;
+        assert!(
+            validate_io_pattern([Call::Absorb(MAX), Call::Squeeze(MAX)])
+                .is_ok()
+        );
+        assert!(
+            validate_io_pattern([Call::Absorb(MAX + 1), Call::Squeeze(1)])
+                .is_err()
+        );
+        assert!(
+            validate_io_pattern([Call::Absorb(1), Call::Squeeze(MAX + 1)])
+                .is_err()
+        );
+    }
+
+    #[test]
     fn test_tag_input() -> Result<(), Error> {
         let domain_sep = 42;
 

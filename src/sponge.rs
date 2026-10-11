@@ -479,6 +479,21 @@ mod storage_tests {
         }
     }
     #[test]
+    fn drop_wipes_buffered_output() {
+        let mut sponge = Sponge::start(
+            Identity,
+            vec![Call::Absorb(1), Call::Squeeze(1), Call::Squeeze(1)],
+            0,
+        )
+        .unwrap();
+        sponge.absorb(1, [99]).unwrap();
+        sponge.squeeze(1).unwrap();
+        watch(&sponge.output[0]);
+        // A sponge dropped before `finish` still holds its output.
+        drop(sponge);
+        assert!(WIPED.get(), "buffered output must be wiped on drop");
+    }
+    #[test]
     fn allocation_failure_is_terminal() {
         for buffered in [false, true] {
             let mut sponge = Sponge::start(
